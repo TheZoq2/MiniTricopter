@@ -14,7 +14,7 @@ qstruct!(TricopterBody()
 {
     radius: f32 = 80.,
     height: f32 = 4.,
-    outer_width: f32 = 18.,
+    outer_width: f32 = 22.,
     inner_width: f32 = 50.,
 
     arm_width: f32 = 10.,
@@ -24,13 +24,20 @@ impl TricopterBody
 {
     pub fn get_body_bottom(&self) -> ScadObject
     {
-        scad!(Union;{
+        let body = scad!(Union;{
             scad!(LinearExtrude(
                     LinExtrudeParams{center:false, height:self.height, ..Default::default()}
                 );self.get_body_shape()),
             scad!(LinearExtrude(
                     LinExtrudeParams{center:false, height:self.height + self.arm_width, ..Default::default()}
                 );self.get_back_mount_block()),
+        });
+
+
+        scad!(Difference;
+        {
+            body,
+            self.get_front_arm_screw_holes()
         })
     }
 
@@ -83,6 +90,35 @@ impl TricopterBody
         scad!(Union;{
             shape,
             mirrored
+        })
+    }
+
+    fn get_front_arm_screw_holes(&self) -> ScadObject
+    {
+        //The distance from the center to the point of the stopping screws
+        let stopper_screw_distance = self.radius - 8.;
+
+        //Distance from the center to the mount point of the arms
+        let mount_screw_offset = self.radius - 25.;
+
+        let mount_hole = scad!(Translate(vec3(mount_screw_offset, 0., 0.));{
+            scad!(Cylinder(self.height, Diameter(SCREW_DIAMETER)))
+        });
+
+        let stopper_hole = scad!(Translate(vec3(stopper_screw_distance, self.arm_width / 2. + SCREW_DIAMETER / 2., 0.));{
+            scad!(Cylinder(self.height, Diameter(SCREW_DIAMETER)))
+        });
+
+        let rotated = scad!(Rotate(120., vec3(0., 0., 1.));
+        {
+            mount_hole,
+            stopper_hole
+        });
+
+        scad!(Union;
+        {
+            rotated.clone(),
+            scad!(Mirror(vec3(0., 1., 0.));{rotated})
         })
     }
 }
