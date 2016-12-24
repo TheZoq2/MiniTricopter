@@ -9,6 +9,16 @@ use std::string::String;
 
 const SCREW_DIAMETER: f32 = 4.5;
 
+fn naze_test() -> ScadObject
+{
+    let width = 35.;
+    let height = 2.;
+
+    let cube = scad!(Cube(vec3(width, width, height)));
+
+    scad!(Translate(-vec3(width, width, 0.) / 2.); cube)
+}
+
 
 qstruct!(TricopterBody()
 {
@@ -18,6 +28,8 @@ qstruct!(TricopterBody()
     inner_width: f32 = 50.,
 
     arm_width: f32 = 10.,
+
+    front_block_x: f32 = 30.,
 });
 
 impl TricopterBody
@@ -29,15 +41,36 @@ impl TricopterBody
                     LinExtrudeParams{center:false, height:self.height, ..Default::default()}
                 );self.get_body_shape()),
             scad!(LinearExtrude(
-                    LinExtrudeParams{center:false, height:self.height + self.arm_width, ..Default::default()}
+                    LinExtrudeParams{center:false, height:self.get_bottom_total_height(), ..Default::default()}
                 );self.get_back_mount_block()),
+            self.get_front_block(self.get_bottom_total_height()),
         });
 
 
         scad!(Difference;
         {
             body,
-            self.get_front_arm_screw_holes()
+            self.get_front_arm_screw_holes(),
+            self.get_back_screwholes(),
+            self.get_front_screwholes(),
+        })
+    }
+
+    pub fn get_body_top(&self) -> ScadObject
+    {
+        let body = scad!(Union;{
+                scad!(LinearExtrude(
+                    LinExtrudeParams{center:false, height:self.height, ..Default::default()}
+                );self.get_body_shape()),
+                self.get_front_block(self.height),
+            });
+
+        scad!(Difference;
+        {
+            body,
+            self.get_front_arm_screw_holes(),
+            self.get_back_screwholes(),
+            self.get_front_screwholes(),
         })
     }
 
@@ -71,7 +104,8 @@ impl TricopterBody
         let start_width = self.outer_width + (self.inner_width - self.outer_width) * length_factor;
 
         //Adding some padding to the arm width
-        let total_arm_width = self.arm_width + 0.5;
+        let arm_padding = 0.5;
+        let total_arm_width = self.arm_width + arm_padding;
 
         let shape = {
             let points = vec!(
@@ -121,6 +155,71 @@ impl TricopterBody
             scad!(Mirror(vec3(0., 1., 0.));{rotated})
         })
     }
+
+    fn get_back_screwholes(&self) -> ScadObject
+    {
+        //The holes should be well in the mount block
+        let x_offset = self.radius * 3. / 4.;
+
+        scad!(Translate(vec3(x_offset, 0., 0.)); self.get_center_screwholes())
+    }
+
+    fn get_center_screwholes(&self) -> ScadObject
+    {
+        let y_offset = self.arm_width / 2. + SCREW_DIAMETER + 1.;
+
+        let cylinders = scad!(Translate(vec3(0., y_offset, 0.));
+        {
+            scad!(Cylinder(self.get_bottom_total_height(), Diameter(SCREW_DIAMETER))),
+        });
+
+        scad!(Union;
+        {
+            cylinders.clone(),
+            scad!(Mirror(vec3(0., 1., 0.)); cylinders)
+        })
+    }
+
+    fn get_bottom_total_height(&self) -> f32
+    {
+        self.arm_width + self.height
+    }
+
+    fn get_front_block(&self, height: f32) -> ScadObject
+    {
+        let width = self.outer_width;
+        let length = self.radius / 8.;
+        let chamfer_radius = width / 10.;
+        let x_offset = self.front_block_x;
+
+        let mut cylinders = scad!(Hull);
+
+        for point in vec!(
+                (-length / 2., width),
+                (-length / 2., -width),
+                (length / 2., width), 
+                (length / 2., -width)
+            )
+        {
+            let cylinder = scad!(
+                Cylinder(height, Radius(chamfer_radius))
+            );
+
+            let translated = scad!(Translate(vec3(point.0, point.1, 0.)); cylinder);
+
+            cylinders.add_child(translated);
+        }
+
+        scad!(Translate(vec3(-x_offset, 0., 0.)); cylinders)
+    }
+
+    fn get_front_screwholes(&self) -> ScadObject
+    {
+        let x_offset = self.front_block_x;
+
+        scad!(Translate(vec3(-x_offset, 0., 0.)); self.get_center_screwholes())
+    }
+
 }
 
 fn main() 
@@ -129,6 +228,8 @@ fn main()
     sfile.set_detail(50);
 
     sfile.add_object(TricopterBody::new().get_body_bottom());
+    sfile.add_object(scad!(Translate(vec3(0., 0., 20.)); TricopterBody::new().get_body_top()));
+    sfile.add_object(scad!(Translate(vec3(0., 0., 30.)); naze_test()));
 
     sfile.write_to_file(String::from("out.scad"));
 }
