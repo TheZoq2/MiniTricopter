@@ -7,7 +7,11 @@ use scad_generator::*;
 
 use std::string::String;
 
-const SCREW_DIAMETER: f32 = 4.5;
+use scad_util::add_named_color;
+
+//TODO: Battery mount
+
+const SCREW_DIAMETER: f32 = 3.5;
 
 fn naze_test() -> ScadObject
 {
@@ -17,6 +21,27 @@ fn naze_test() -> ScadObject
     let cube = scad!(Cube(vec3(width, width, height)));
 
     scad!(Translate(-vec3(width, width, 0.) / 2.); cube)
+}
+
+
+qstruct!(Esc()
+{
+    width: f32 = 20.,
+    length: f32 = 25.,
+    thickness: f32 = 4.
+});
+
+impl Esc
+{
+    pub fn get_pcb(&self, center: (bool, bool, bool)) -> ScadObject
+    {
+        let (center_x, center_y, center_z) = center;
+
+        centered_cube(
+            vec3(self.width, self.length, self.thickness),
+            (center_x, center_y, center_z)
+        )
+    }
 }
 
 
@@ -104,7 +129,7 @@ impl TricopterBody
         let start_width = self.outer_width + (self.inner_width - self.outer_width) * length_factor;
 
         //Adding some padding to the arm width
-        let arm_padding = 0.5;
+        let arm_padding = 0.25;
         let total_arm_width = self.arm_width + arm_padding;
 
         let shape = {
@@ -229,7 +254,18 @@ fn main()
 
     sfile.add_object(TricopterBody::new().get_body_bottom());
     sfile.add_object(scad!(Translate(vec3(0., 0., 20.)); TricopterBody::new().get_body_top()));
-    sfile.add_object(scad!(Translate(vec3(0., 0., 30.)); naze_test()));
+    sfile.add_object(
+            add_named_color(
+                "steelblue",
+                scad!(Translate(vec3(0., 0., 30.)); naze_test())
+            )
+        );
+    sfile.add_object(
+            add_named_color(
+                "crimson",
+                scad!(Translate(vec3(0., 0., 30.)); Esc::new().get_pcb((false,true,true)))
+            )
+        );
 
     sfile.write_to_file(String::from("out.scad"));
 }
