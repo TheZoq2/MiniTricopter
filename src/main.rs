@@ -45,6 +45,46 @@ impl Esc
 }
 
 
+qstruct!(EscTray()
+{
+    amount: i32 = 3,
+    spacing: f32 = 7.5,
+    thickness: f32 = 3.,
+});
+
+impl EscTray
+{
+    pub fn get_bottom(&self, x_padding: f32) -> ScadObject
+    {
+        let esc = Esc::new();
+
+        let mut escs = scad!(Union);
+        for i in 0..self.amount
+        {
+            let rotated = scad!(Rotate(-90., vec3(0., 1., 0.));
+            {
+                esc.get_pcb((false, true, true))
+            });
+
+            let x_position = (self.spacing + esc.thickness) * i as f32 + x_padding
+                    - (self.spacing + esc.thickness) / 2. * self.amount as f32;
+            let translated = scad!(Translate(vec3(x_position, 0., 0.)); rotated);
+
+            escs.add_child(translated);
+        }
+
+
+        let x_size = self.amount as f32 * (self.spacing + esc.thickness) + x_padding * 2.;
+        let body = centered_cube(vec3(x_size, esc.length, self.thickness), (true, true, false));
+
+        scad!(Difference;{
+            body,
+            escs
+        })
+    }
+}
+
+
 qstruct!(TricopterBody()
 {
     radius: f32 = 80.,
@@ -83,11 +123,16 @@ impl TricopterBody
 
     pub fn get_body_top(&self) -> ScadObject
     {
+        let esc_tray = scad!(Translate(vec3(40., 0., self.height));{
+            EscTray::new().get_bottom(0.)
+        });
+
         let body = scad!(Union;{
                 scad!(LinearExtrude(
                     LinExtrudeParams{center:false, height:self.height, ..Default::default()}
                 );self.get_body_shape()),
                 self.get_front_block(self.height),
+                esc_tray
             });
 
         scad!(Difference;
@@ -247,6 +292,23 @@ impl TricopterBody
 
 }
 
+
+use std::io::prelude::*;
+use std::fs::OpenOptions;
+fn add_text_to_history_file(content: &str, history_file: &str)
+{
+    let mut target_file = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(history_file).unwrap();
+
+    let file_divider = "##__start_of_new_file__##\n";
+
+    target_file.write_all(file_divider.as_bytes()).unwrap();
+    target_file.write_all(content.as_bytes()).unwrap();
+}
+
+
 fn main() 
 {
     let mut sfile = ScadFile::new();
@@ -260,12 +322,8 @@ fn main()
                 scad!(Translate(vec3(0., 0., 30.)); naze_test())
             )
         );
-    sfile.add_object(
-            add_named_color(
-                "crimson",
-                scad!(Translate(vec3(0., 0., 30.)); Esc::new().get_pcb((false,true,true)))
-            )
-        );
 
     sfile.write_to_file(String::from("out.scad"));
+
+    add_text_to_history_file(&sfile.get_code(), "frame_history.scad");
 }
