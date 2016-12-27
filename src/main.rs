@@ -23,6 +23,36 @@ fn naze_test() -> ScadObject
     scad!(Translate(-vec3(width, width, 0.) / 2.); cube)
 }
 
+qstruct!(BoardCamera()
+{
+    width: f32 = 32.,
+    thickness: f32 = 4.,
+    lens_diameter: f32 = 17.,
+    lens_length: f32 = 24.,
+});
+
+impl BoardCamera
+{
+    pub fn get_model(&self) -> ScadObject
+    {
+        let pcb = centered_cube(
+                vec3(self.width, self.width, self.thickness),
+                (true, true, false)
+            );
+
+        let lens = scad!(Cylinder(
+                self.thickness + self.lens_length,
+                Diameter(self.lens_diameter)
+            ));
+
+        scad!(Union;
+        {
+            pcb,
+            lens
+        })
+    }
+}
+
 
 qstruct!(Esc()
 {
@@ -45,51 +75,68 @@ impl Esc
 }
 
 
-qstruct!(EscTray()
+
+qstruct!(EscStack()
 {
-    amount: i32 = 3,
-    spacing: f32 = 7.5,
-    thickness: f32 = 3.,
+    layer_thickness: f32 = 3.,
+    esc: Esc = Esc::new(),
+    screw_padding: f32 = 2.
 });
 
-impl EscTray
+impl EscStack
 {
-    pub fn get_bottom(&self, x_padding: f32) -> ScadObject
+    pub fn place_object_at_hole_locations(&self, object: ScadObject) -> ScadObject
     {
-        let esc = Esc::new();
+        let mut result = scad!(Union);
 
-        let mut escs = scad!(Union);
-        for i in 0..self.amount
+        let x_position = self.esc.width / 2. 
+                            + self.screw_padding / 2.
+                            + SCREW_DIAMETER / 2.;
+        let y_position = self.esc.length / 4.;
+
+        let points = vec!(
+                vec3(x_position, y_position, 0.),
+                vec3(-x_position, y_position, 0.),
+                vec3(x_position, -y_position, 0.),
+                vec3(-x_position, -y_position, 0.),
+            );
+
+        for point in points
         {
-            let rotated = scad!(Rotate(-90., vec3(0., 1., 0.));
-            {
-                esc.get_pcb((false, true, true))
-            });
-
-            let x_position = (self.spacing + esc.thickness) * i as f32 + x_padding
-                    - (self.spacing + esc.thickness) / 2. * self.amount as f32;
-            let translated = scad!(Translate(vec3(x_position, 0., 0.)); rotated);
-
-            escs.add_child(translated);
+            result.add_child(scad!(Translate(point);{
+                object.clone()
+            }));
         }
 
+        result
+    }
 
-        let x_size = self.amount as f32 * (self.spacing + esc.thickness) + x_padding * 2.;
-        let body = centered_cube(vec3(x_size, esc.length, self.thickness), (true, true, false));
+    pub fn get_mid_section(&self) -> ScadObject
+    {
+        let chamfer_radius = SCREW_DIAMETER / 2. + self.screw_padding;
+        let main = scad!(Hull;{
+            self.place_object_at_hole_locations(
+                    scad!(Cylinder(self.layer_thickness, Radius(chamfer_radius)))
+                )
+        });
 
-        scad!(Difference;{
-            body,
-            escs
+        scad!(Difference;
+        {
+            main,
+            self.place_object_at_hole_locations(
+                    scad!(Cylinder(self.layer_thickness, Diameter(SCREW_DIAMETER)))
+                )
         })
     }
 }
+
 
 
 qstruct!(TricopterBody()
 {
     radius: f32 = 80.,
     height: f32 = 4.,
-    outer_width: f32 = 22.,
+    outer_width: f32 = 30.,
     inner_width: f32 = 50.,
 
     arm_width: f32 = 10.,
@@ -123,16 +170,11 @@ impl TricopterBody
 
     pub fn get_body_top(&self) -> ScadObject
     {
-        let esc_tray = scad!(Translate(vec3(40., 0., self.height));{
-            EscTray::new().get_bottom(0.)
-        });
-
         let body = scad!(Union;{
                 scad!(LinearExtrude(
                     LinExtrudeParams{center:false, height:self.height, ..Default::default()}
                 );self.get_body_shape()),
                 self.get_front_block(self.height),
-                esc_tray
             });
 
         scad!(Difference;
@@ -257,7 +299,7 @@ impl TricopterBody
 
     fn get_front_block(&self, height: f32) -> ScadObject
     {
-        let width = self.outer_width;
+        let width = self.outer_width / 2.;
         let length = self.radius / 8.;
         let chamfer_radius = width / 10.;
         let x_offset = self.front_block_x;
@@ -289,7 +331,6 @@ impl TricopterBody
 
         scad!(Translate(vec3(-x_offset, 0., 0.)); self.get_center_screwholes())
     }
-
 }
 
 
@@ -309,6 +350,36 @@ fn add_text_to_history_file(content: &str, history_file: &str)
 }
 
 
+fn test_esc_stack(sfile: &mut ScadFile)
+{
+    let esc_rotation = 90.;
+    let esc = add_named_color(
+        "crimson",
+        scad!(Rotate(esc_rotation, vec3(0., 0., 1.)); {
+            Esc::new().get_pcb((true, true, false)),
+        })
+    );
+    let holder = add_named_color(
+        "SaddleBrown",
+        scad!(Rotate(esc_rotation, vec3(0., 0., 1.)); {
+            EscStack::new().get_mid_section()
+        })
+    );
+
+    let x_pos = 35.;
+    let z_offset = 6.;
+    for i in 0..3
+    {
+        sfile.add_object(
+                scad!(Translate(vec3(x_pos, 0., 30. + (i as f32) * z_offset)); esc.clone())
+            );
+        sfile.add_object(
+                scad!(Translate(vec3(x_pos, 0., 30. + (i as f32) * z_offset + 3.)); holder.clone())
+            );
+    }
+}
+
+
 fn main() 
 {
     let mut sfile = ScadFile::new();
@@ -322,6 +393,20 @@ fn main()
                 scad!(Translate(vec3(0., 0., 30.)); naze_test())
             )
         );
+    sfile.add_object(
+            add_named_color(
+                "dimgray",
+                scad!(Translate(vec3(-20., 0., 30.)); 
+                {
+                    scad!(Rotate(-90., vec3(0., 1., 0.));
+                    {
+                        BoardCamera::new().get_model(),
+                    })
+                })
+            )
+        );
+
+    test_esc_stack(&mut sfile);
 
     sfile.write_to_file(String::from("out.scad"));
 
