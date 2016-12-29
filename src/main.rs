@@ -10,9 +10,6 @@ use std::string::String;
 
 use scad_util::add_named_color;
 
-//TODO: Battery mount
-//TODO: Mounting screws
-
 const SCREW_DIAMETER: f32 = 3.5;
 
 fn get_m3_screw(length: f32) -> ScadObject
@@ -234,7 +231,9 @@ qstruct!(TricopterBody()
     edge_padding: f32 = 0.25,
     edge_height: f32 = 3.,
 
-    camera_hole_length: f32 = 20.,
+    camera_box_length: f32 = 20.,
+    camera_box_edge_width: f32 = 1.,
+    camera_box_edge_padding: f32 = 0.5,
     
     motor_wire_hole_radius: f32 = 4.,
 
@@ -244,21 +243,33 @@ qstruct!(TricopterBody()
 
 impl TricopterBody
 {
+    /**
+      Main function for getting the bottom section of the body
+    */
     pub fn get_body_bottom(&self) -> ScadObject
     {
+        //Parameters for extruding things to the height of the bottom plate
         let low_extrude_params = LinExtrudeParams
         {
-            center:false,
             height:self.height,
             ..Default::default()
         };
+        //Parameters for extruding things to the height of the plate +
+        //the height of the blocky parts
         let high_extrude_params = LinExtrudeParams
         {
-            center:false,
             height:self.get_bottom_total_height(),
             ..Default::default()
         };
 
+        //Parameters for extruding things to the height of the camera box edge.
+        let edge_extrude_params = LinExtrudeParams
+        {
+            height: self.get_bottom_total_height() + self.height,
+            .. Default::default()
+        };
+
+        //The body without things cut out
         let body = scad!(Union;{
             scad!(LinearExtrude(low_extrude_params);
             {
@@ -269,19 +280,45 @@ impl TricopterBody
             {
                 self.get_back_mount_block(),
                 self.get_camera_box_outline(),
+            }),
+            scad!(LinearExtrude(edge_extrude_params.clone());
+            {
+                self.get_camera_box_bottom_edge_outline()
             })
         });
 
 
+        //Cutout for the camera box
+        let camera_box_cutout = {
+            let cutter = scad!(LinearExtrude(edge_extrude_params);
+            {
+                self.get_camera_box_bottom_cutout_outline()
+            });
+
+            scad!(Translate(vec3(0., 0., self.height)); cutter)
+        };
+
+        let camera_lens_hole = {
+            let z_offset = self.camera_offset_from_top 
+                           + self.get_bottom_total_height();
+
+            self.get_camera_lens_hole(z_offset)
+        };
+
+        //Cutting out things like holes
         scad!(Difference;
         {
-            body,
-            self.get_front_arm_screw_holes(),
-            self.get_back_screwholes(),
-            //self.get_front_screwholes(),
+            body
+            , self.get_front_arm_screw_holes()
+            , self.get_back_screwholes()
+            , camera_box_cutout
+            , camera_lens_hole
         })
     }
 
+    /**
+      Main function for the top section of the body
+    */
     pub fn get_body_top(&self) -> ScadObject
     {
         let esc_stack_offset = 40.;
@@ -305,12 +342,11 @@ impl TricopterBody
             }),
         });
         
-        let camera_hole = scad!(LinearExtrude(linear_extrude.clone());
+        let camera_box = scad!(LinearExtrude(linear_extrude.clone());
             {
-                self.get_camera_hole_top_cutout()
+                self.get_camera_box_top_cutout()
             });
 
-        //camera_hole.is_important();
 
         let esc_stack_holes = {
             let holes = EscStack::new()
@@ -335,9 +371,9 @@ impl TricopterBody
             self.get_back_screwholes(),
             self.get_top_plate_motor_wire_hole(),
             self.get_battery_wire_hole(),
-            self.get_camera_lens_hole(),
+            self.get_camera_lens_hole(self.camera_offset_from_top),
             screwholes,
-            camera_hole,
+            camera_box,
         });
 
         scad!(Intersection;{
@@ -346,6 +382,10 @@ impl TricopterBody
         })
     }
 
+    /**
+      Function for getting the 2d outline of the body. Does not include
+      the cutoff to 14cm on the sides that is done by self.get_side_bounds()
+    */
     fn get_body_shape(&self) -> ScadObject
     {
         let back_segment = get_body_section(
@@ -363,14 +403,24 @@ impl TricopterBody
         //Position the front arms
         for i in 1..3
         {
-            result.add_child(scad!{Rotate(120. * i as f32, vec3(0.,0.,1.)); side_segments.clone()});
+            let rotated = scad!(Rotate(120. * i as f32, vec3(0.,0.,1.));
+            {
+                side_segments.clone()
+            });
+
+            result.add_child(rotated);
         }
 
+        //ADd the back arm
         result.add_child(back_segment);
 
         result
     }
 
+    /**
+      Gets the outline of the block that goes at the back of the body
+      for keeping the arm in place
+    */
     fn get_back_mount_block(&self) -> ScadObject
     {
         //Percentage of the radius that the block should take up
@@ -402,6 +452,11 @@ impl TricopterBody
         })
     }
 
+    /**
+      Returns cylinders for the screwholes that should be on the front arms
+
+      (The arm mount and arm blocker)
+     */
     fn get_front_arm_screw_holes(&self) -> ScadObject
     {
         //The distance from the center to the point of the stopping screws
@@ -431,6 +486,9 @@ impl TricopterBody
         })
     }
 
+    /**
+      Returns cylinders for the back screwholes
+     */
     fn get_back_screwholes(&self) -> ScadObject
     {
         //The holes should be well in the mount block
@@ -439,6 +497,10 @@ impl TricopterBody
         scad!(Translate(vec3(x_offset, 0., 0.)); self.get_center_screwholes())
     }
 
+    /**
+      Returns screwholes centered around the x-axis with a radius that fits
+      within the back block.
+     */
     fn get_center_screwholes(&self) -> ScadObject
     {
         let y_offset = self.arm_width / 2. + SCREW_DIAMETER + 1.;
@@ -455,11 +517,18 @@ impl TricopterBody
         })
     }
 
+    /**
+      Returns the total height of the bottom object. The height of the bottom
+      plate plus the height of the blocks.
+     */
     fn get_bottom_total_height(&self) -> f32
     {
         self.arm_width + self.height
     }
 
+    /**
+        Returns the outline of the front section of the body
+     */
     fn get_front_section(&self) -> ScadObject
     {
         let corner_radius = 2.;
@@ -474,11 +543,18 @@ impl TricopterBody
             );
 
         let polygon = scad!(Polygon(PolygonParameters::new(points)));
-        let offset = scad!(Offset(OffsetType::Radius(corner_radius), false); polygon);
+        let offset = scad!(Offset(OffsetType::Radius(corner_radius), false);{
+            polygon
+        });
 
         offset
     }
 
+    /**
+      Returns the outline of the part that is covered by the canopy
+
+      This is the union of the front section and back arm mount
+     */
     fn get_mid_section_outline(&self) -> ScadObject
     {
         let points = vec!(
@@ -500,13 +576,15 @@ impl TricopterBody
         scad!(Polygon(PolygonParameters::new(points).multi_vector_path(path)))
     }
 
+    /**
+      Returns an outline around the mid_section
+     */
     fn get_top_plate_canopy_edges(&self) -> ScadObject
     {
         //Function for doing the linear extrusion
         fn extrusion_function(outline: ScadObject, height: f32) -> ScadObject
         {
             let linear_extrude_parameters = LinExtrudeParams{
-                center: false,
                 height: height,
                 ..Default::default()
             };
@@ -548,10 +626,14 @@ impl TricopterBody
         })
     }
 
-    fn get_camera_hole_top_cutout(&self) -> ScadObject
+    /**
+      Returns the cutout for the camera hole that goes in the top part
+      of the frame
+    */
+    fn get_camera_box_top_cutout(&self) -> ScadObject
     {
         let x_end = -(self.front_section_length - self.canopy_thickness);
-        let x_start = x_end + self.camera_hole_length;
+        let x_start = x_end + self.camera_box_length;
         let width = self.front_section_width - self.canopy_thickness * 2.;
 
         let points = vec!(
@@ -564,13 +646,17 @@ impl TricopterBody
         scad!(Polygon(PolygonParameters::new(points)))
     }
 
+    /**
+      Returns the outline of a block that makes up the bulk of the camera 
+      box that goes on the bottom frame piece
+     */
     fn get_camera_box_outline(&self) -> ScadObject
     {
-        let corner_radius = 2.;
+        let corner_radius = 0.;
         let x_start = -(
                 self.front_section_length 
-                - self.camera_hole_length
-                - corner_radius * 2. //*2 because I messed up the top part
+                - self.camera_box_length
+                - self.canopy_thickness * 2.
             );
 
         let x_end = -(self.front_section_length - corner_radius);
@@ -589,6 +675,34 @@ impl TricopterBody
         scad!(Offset(OffsetType::Radius(corner_radius), false); polygon)
     }
 
+    /**
+      Returns an outline of the edge that fits inside the camera_box_top_cutout
+    */
+    fn get_camera_box_bottom_edge_outline(&self) -> ScadObject
+    {
+        let offset = -(self.canopy_thickness + self.camera_box_edge_padding);
+        scad!(Offset(OffsetType::Delta(offset), false);{
+            self.get_camera_box_outline()
+        })
+    }
+    /**
+      Returns a 2d outline of the hole part of the camera box
+     */
+    fn get_camera_box_bottom_cutout_outline(&self) -> ScadObject
+    {
+        let offset = -self.camera_box_edge_width;
+
+        scad!(Offset(OffsetType::Delta(offset), false);{
+            self.get_camera_box_bottom_edge_outline()
+        })
+    }
+
+    /**
+      Translate an object to the location of the hole where the motor wires
+      come out.
+
+      This is the small hole that goes through the back block
+     */
     fn place_object_at_motor_wire_hole(&self, object: ScadObject) -> ScadObject
     {
         let padding = 1.5;
@@ -598,6 +712,10 @@ impl TricopterBody
         scad!(Translate(vec3(hole_x, hole_y, 0.)); object)
     }
 
+    /**
+      Returns the cutout of the motor_wire_hole that goes in the top part of the
+      frame. Includes space for water tight seal
+    */
     fn get_top_plate_motor_wire_hole(&self) -> ScadObject
     {
         let hole = scad!(Cylinder(self.height, Radius(self.motor_wire_hole_radius)));
@@ -613,6 +731,10 @@ impl TricopterBody
         })
     }
 
+    /**
+      Returns a hole where the battery wires can go through in front of the
+      flight controller
+     */
     fn get_battery_wire_hole(&self) -> ScadObject
     {
         let radius = 3.;
@@ -623,7 +745,10 @@ impl TricopterBody
         scad!(Translate(position); hole)
     }
 
-    fn get_camera_lens_hole(&self) -> ScadObject
+    /**
+      Returns a cylinder that cuts a hole for the camera
+     */
+    fn get_camera_lens_hole(&self, z_offset: f32) -> ScadObject
     {
         let camera_board = BoardCamera::new();
         let offset = -(self.front_section_length - camera_board.lens_length / 2.);
@@ -631,9 +756,13 @@ impl TricopterBody
         let hole = camera_board.get_lens_hole();
         let rotated = scad!(Rotate(-90., vec3(0., 1., 0.)); hole);
 
-        scad!(Translate(vec3(offset, 0., self.camera_offset_from_top)); rotated)
+        scad!(Translate(vec3(offset, 0., z_offset)); rotated)
     }
 
+    /**
+      Returns a box that makes sure the sides of the frame don't exceed 14cm
+      to fit inside the printer without rotating.
+     */
     fn get_side_bounds(&self) -> ScadObject
     {
         let width = 140.;
