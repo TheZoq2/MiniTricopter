@@ -210,6 +210,22 @@ fn get_body_section(inner_width: f32, outer_width: f32, length: f32) -> ScadObje
     scad!(Polygon(PolygonParameters::new(points)))
 }
 
+fn get_cable_tie_hole(height: f32, z_rotation: f32) -> ScadObject
+{
+    let separation = 4.;
+    let length = 4.;
+    let hole_width = 3.;
+
+    let cutout = scad!(Cube(vec3(hole_width, length, height)));
+    let translated = scad!(Translate(vec3(separation/2., 0., 0.)); cutout);
+
+    scad!(Rotate(z_rotation, vec3(0., 0., 1.));
+    {
+        translated.clone(),
+        scad!(Mirror(vec3(1., 0., 0.)); translated.clone()),
+    })
+}
+
 qstruct!(TricopterBody()
 {
     radius: f32 = 80.,
@@ -217,6 +233,8 @@ qstruct!(TricopterBody()
     outer_width: f32 = 23.,
     back_outer_width: f32 = 33.,
     inner_width: f32 = 50.,
+
+    back_block_length_factor: f32 = 0.5,
 
     arm_width: f32 = 10.,
 
@@ -234,10 +252,12 @@ qstruct!(TricopterBody()
     camera_box_length: f32 = 20.,
     camera_box_edge_width: f32 = 1.,
     camera_box_edge_padding: f32 = 0.5,
-    
+
     motor_wire_hole_radius: f32 = 4.,
 
     camera_offset_from_top: f32 = 10.,
+
+    mounting_screw_outline_radius: f32 = 3.,
 });
 
 
@@ -280,6 +300,8 @@ impl TricopterBody
             {
                 self.get_back_mount_block(),
                 self.get_camera_box_outline(),
+                self.get_front_screw_tab_outline(),
+                self.get_back_screw_tab_outline(),
             }),
             scad!(LinearExtrude(edge_extrude_params.clone());
             {
@@ -306,13 +328,23 @@ impl TricopterBody
         };
 
         //Cutting out things like holes
-        scad!(Difference;
+        let with_holes = scad!(Difference;
         {
             body
             , self.get_front_arm_screw_holes()
             , self.get_back_screwholes()
             , camera_box_cutout
             , camera_lens_hole
+            , self.get_battery_strap_holes()
+            , self.place_object_at_motor_wire_hole(
+                        self.get_back_block_cable_hole())
+            , self.get_cable_tie_holes()
+        });
+
+        scad!(Intersection;
+        {
+            with_holes,
+            self.get_side_bounds()
         })
     }
 
@@ -424,7 +456,7 @@ impl TricopterBody
     fn get_back_mount_block(&self) -> ScadObject
     {
         //Percentage of the radius that the block should take up
-        let length_factor = 0.5;
+        let length_factor = self.back_block_length_factor;
 
         let start_width = self.back_outer_width 
             + (self.inner_width - self.back_outer_width) 
@@ -531,7 +563,7 @@ impl TricopterBody
      */
     fn get_front_section(&self) -> ScadObject
     {
-        let corner_radius = 2.;
+        let corner_radius = self.front_section_corner_radius;
         let length = self.front_section_length - corner_radius;
         let width = self.front_section_width - corner_radius * 2.;
 
@@ -652,11 +684,12 @@ impl TricopterBody
      */
     fn get_camera_box_outline(&self) -> ScadObject
     {
-        let corner_radius = 0.;
+        let corner_radius = self.front_section_corner_radius;
         let x_start = -(
                 self.front_section_length 
                 - self.camera_box_length
                 - self.canopy_thickness * 2.
+                + corner_radius
             );
 
         let x_end = -(self.front_section_length - corner_radius);
@@ -768,6 +801,171 @@ impl TricopterBody
         let width = 140.;
 
         centered_cube(vec3(10000., width, 1000.), (true, true, false))
+    }
+
+    /**
+      Returns cubes where the battery straps should go
+    */
+    fn get_battery_strap_holes(&self) -> ScadObject
+    {
+        let y_separation = 17.;
+        let x_size = 27.;
+        let y_size = 4.;
+
+        let cube = 
+            centered_cube(vec3(x_size, y_size, self.height), (true,true,false));
+
+        let translated = scad!(Translate(vec3(0., y_separation, 0.)); cube);
+
+        scad!(Union;
+        {
+            translated.clone(),
+            scad!(Mirror(vec3(0., 1., 0.)); translated)
+        })
+    }
+
+    /**
+      Positions an object at the location of the 2 mounting screw holes in the
+      front
+    */
+    fn place_object_at_front_mount_locations(&self, object: ScadObject)
+            -> ScadObject
+    {
+        let offset_from_side = self.mounting_screw_outline_radius;
+        let x_offset = -(self.front_section_length * 11. / 16.);
+        let y_separation = self.front_section_width / 2. + offset_from_side;
+
+        scad!(Translate(vec3(x_offset, 0., 0.));
+        {
+            scad!(Translate(vec3(0., y_separation, 0.)); object.clone()),
+            scad!(Translate(vec3(0., -y_separation, 0.)); object.clone()),
+        })
+    }
+
+    /**
+      Returns an outline of the screw holes that connect the top canopy with
+      the bottom section
+     */
+    fn get_front_screw_tab_outline(&self) -> ScadObject
+    {
+        let outline_radius = self.mounting_screw_outline_radius;
+        let outline_circle = scad!(Circle(Radius(outline_radius)));
+        let outline_circles = 
+            self.place_object_at_front_mount_locations(outline_circle);
+
+        let hull = scad!(Hull;
+        {
+            outline_circles
+        });
+
+        let screwhole = scad!(Circle(Diameter(SCREW_DIAMETER)));
+        let screwholes = self.place_object_at_front_mount_locations(screwhole);
+
+        scad!(Difference;
+        {
+            hull,
+            screwholes
+        })
+    }
+
+    /**
+      Returns the outline of the mounting screws for the back section
+    */
+    fn get_back_screw_tab_outline(&self) -> ScadObject
+    {
+        let outline_radius = self.mounting_screw_outline_radius;
+
+        let outline_circle = scad!(Circle(Radius(outline_radius)));
+
+        let x_start = self.radius;
+        let x_end = self.radius + outline_radius;
+        let y_separation = self.outer_width * 7. / 8.;
+
+        let hull = scad!(Hull;{
+            scad!(Translate2d(vec2(x_start, 0.)); outline_circle.clone()),
+            scad!(Translate2d(vec2(x_end, 0.)); outline_circle.clone()),
+        });
+
+        let screwhole = {
+            let circle = scad!(Circle(Diameter(SCREW_DIAMETER)));
+
+            scad!(Translate2d(vec2(x_end, 0.)); circle)
+        };
+
+        let difference = scad!(Difference;
+        {
+            hull,
+            screwhole
+        });
+
+        scad!(Union;
+        {
+            scad!(Translate2d(vec2(0., y_separation / 2.)); difference.clone()),
+            scad!(Translate2d(vec2(0., -y_separation / 2.)); difference)
+        })
+    }
+
+    /**
+      Returns the hole for routing cables thorugh the back section of the bottom
+      body section
+    */
+    fn get_back_block_cable_hole(&self) -> ScadObject
+    {
+        let height = self.get_bottom_total_height() * 3. / 8.;
+        let radius = Radius(self.motor_wire_hole_radius);
+        let bottom_length = self.radius * self.back_block_length_factor / 2.;
+
+        let top_cylinder = 
+            scad!(Cylinder(height, radius.clone()));
+
+        let middle_sphere = scad!(Sphere(radius.clone()));
+
+        let horizontal_cylinder = {
+            let cylinder = scad!(Cylinder(bottom_length, radius.clone()));
+            scad!(Rotate(-90., vec3(0., 1., 0.)); cylinder)
+        };
+
+        let z_position = self.get_bottom_total_height() - height;
+        scad!(Translate(vec3(0., 0., z_position));
+        {
+            top_cylinder,
+            middle_sphere,
+            horizontal_cylinder
+        })
+    }
+
+    /**
+      Returns holes for attaching cable ties to the bottom section of the body
+     */
+    fn get_cable_tie_holes(&self) -> ScadObject
+    {
+        //Location of the front zip ties
+        let front_y_separation = self.inner_width;
+        let front_x_offset = -(self.front_section_length / 3.);
+
+        //Location of the back zip tie
+        let back_x = self.radius / 3.;
+        let back_y = self.outer_width / 2.;
+
+        let points = vec!(
+                na::Vector3::new(front_x_offset, front_y_separation / 2., 0.)
+                , na::Vector3::new(front_x_offset, -front_y_separation / 2., 0.)
+                , na::Vector3::new(back_x, back_y, 0.)
+            );
+
+        let mut result = scad!(Union);
+
+        for point in points
+        {
+            let object = scad!(Translate(point); 
+            {
+                get_cable_tie_hole(self.height, 90.)
+            });
+
+            result.add_child(object);
+        }
+
+        result
     }
 }
 
