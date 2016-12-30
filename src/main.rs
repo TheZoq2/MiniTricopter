@@ -258,6 +258,8 @@ qstruct!(TricopterBody()
     camera_offset_from_top: f32 = 10.,
 
     mounting_screw_outline_radius: f32 = 3.,
+
+    canopy_max_height: f32 = 30.,
 });
 
 
@@ -967,6 +969,63 @@ impl TricopterBody
 
         result
     }
+
+    /**
+      Returns the outline of the canopy in the x-z plane
+    */
+    fn get_canopy_xz_outline(&self, bottom_offset: f32) -> ScadObject
+    {
+        let max_height = self.canopy_max_height;
+
+        let points = vec!(
+            na::Vector2::new(-self.front_section_length, bottom_offset)
+            , na::Vector2::new(-self.front_section_length, max_height * 3. / 4.)
+            , na::Vector2::new(-self.front_section_length / 2., max_height)
+            , na::Vector2::new(self.radius / 6., max_height)
+            , na::Vector2::new(self.radius, bottom_offset)
+        );
+
+        scad!(Polygon(PolygonParameters::new(points)))
+    }
+
+    fn get_canopy_yz_outline(&self, bottom_offset: f32) -> ScadObject
+    {
+
+    }
+
+    /**
+      Returns the outside of the canopy
+    */
+    fn get_canopy_outside(&self) -> ScadObject
+    {
+        let xy_outline = self.get_mid_section_outline();
+        let xz_outline = self.get_canopy_xz_outline(0.);
+
+        let xy_extrude_params = LinExtrudeParams
+        {
+            height:100.,
+            ..Default::default()
+        };
+        let xz_extrude_params = LinExtrudeParams
+        {
+            height:100.,
+            center: true,
+            ..Default::default()
+        };
+
+        let extruded_xy = scad!(LinearExtrude(xy_extrude_params); xy_outline);
+        let extruded_xz = {
+            let extruded = scad!(LinearExtrude(xz_extrude_params); xz_outline);
+
+            scad!(Rotate(90., vec3(1., 0., 0.)); extruded)
+        };
+
+        scad!(Intersection;
+        {
+            extruded_xy,
+            extruded_xz
+        })
+    }
 }
 
 
@@ -1023,6 +1082,7 @@ fn main()
 
     sfile.add_object(TricopterBody::new().get_body_bottom());
     sfile.add_object(scad!(Translate(vec3(0., 0., 20.)); TricopterBody::new().get_body_top()));
+    sfile.add_object(scad!(Translate(vec3(0., 0., 40.)); TricopterBody::new().get_canopy_outside()));
     //sfile.add_object(
     //        add_named_color(
     //            "steelblue",
@@ -1042,7 +1102,7 @@ fn main()
     //        )
     //    );
 
-    //test_esc_stack(&mut sfile);
+    test_esc_stack(&mut sfile);
 
 
     sfile.write_to_file(String::from("out.scad"));
