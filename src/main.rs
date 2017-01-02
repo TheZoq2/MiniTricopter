@@ -259,7 +259,7 @@ qstruct!(TricopterBody()
 
     mounting_screw_outline_radius: f32 = 3.,
 
-    canopy_max_height: f32 = 30.,
+    canopy_max_height: f32 = 20.,
 });
 
 
@@ -879,7 +879,7 @@ impl TricopterBody
 
         let outline_circle = scad!(Circle(Radius(outline_radius)));
 
-        let x_start = self.radius;
+        let x_start = self.radius - outline_radius;
         let x_end = self.radius + outline_radius;
         let y_separation = self.outer_width * 7. / 8.;
 
@@ -973,57 +973,247 @@ impl TricopterBody
     /**
       Returns the outline of the canopy in the x-z plane
     */
-    fn get_canopy_xz_outline(&self, bottom_offset: f32) -> ScadObject
+    fn get_canopy_xz_outline(&self, additional_height: f32) -> ScadObject
     {
+        let bottom_offset = additional_height;
+
         let max_height = self.canopy_max_height;
 
         let points = vec!(
-            na::Vector2::new(-self.front_section_length, bottom_offset)
-            , na::Vector2::new(-self.front_section_length, max_height * 3. / 4.)
-            , na::Vector2::new(-self.front_section_length / 2., max_height)
-            , na::Vector2::new(self.radius / 6., max_height)
-            , na::Vector2::new(self.radius, bottom_offset)
+            vec2(-self.front_section_length, bottom_offset)
+            , vec2(-self.front_section_length, max_height)
+            , vec2(self.radius * 7. / 8., max_height)
+            , vec2(self.radius, 0.)
+            , vec2(self.radius, bottom_offset)
         );
 
         scad!(Polygon(PolygonParameters::new(points)))
     }
 
-    fn get_canopy_yz_outline(&self, bottom_offset: f32) -> ScadObject
+    fn get_canopy_yz_outline(&self, additional_height: f32) -> ScadObject
     {
+        let bottom_offset = additional_height;
 
+        let top_width = self.inner_width * 3. / 4.;
+
+        let triangle_height_above_canopy = top_width / 2.;
+
+        let triangle_height = triangle_height_above_canopy
+                              + self.canopy_max_height;
+                              - bottom_offset;
+
+        let points = vec!(
+                na::Vector2::new(triangle_height, bottom_offset),
+                na::Vector2::new(-triangle_height, bottom_offset),
+                na::Vector2::new(0., triangle_height)
+            );
+
+        scad!(Polygon(PolygonParameters::new(points)))
     }
 
     /**
       Returns the outside of the canopy
     */
-    fn get_canopy_outside(&self) -> ScadObject
+    fn get_canopy_outside(&self, xz_yz_offset:f32) -> ScadObject
     {
-        let xy_outline = self.get_mid_section_outline();
-        let xz_outline = self.get_canopy_xz_outline(0.);
-
-        let xy_extrude_params = LinExtrudeParams
-        {
-            height:100.,
-            ..Default::default()
+        let offset_function = |object| {
+            scad!(Offset(OffsetType::Delta(xz_yz_offset), true); object)
         };
-        let xz_extrude_params = LinExtrudeParams
+
+        let xy_outline = offset_function(self.get_mid_section_outline());
+        let xz_outline = offset_function(self.get_canopy_xz_outline(xz_yz_offset));
+        let yz_outline = offset_function(self.get_canopy_yz_outline(xz_yz_offset));
+
+        let extrude_params = LinExtrudeParams
         {
-            height:100.,
+            height:500.,
             center: true,
             ..Default::default()
         };
 
-        let extruded_xy = scad!(LinearExtrude(xy_extrude_params); xy_outline);
+        let extruded_xy = 
+            scad!(LinearExtrude(extrude_params.clone()); xy_outline);
+
         let extruded_xz = {
-            let extruded = scad!(LinearExtrude(xz_extrude_params); xz_outline);
+            let extruded =
+                scad!(LinearExtrude(extrude_params.clone()); xz_outline);
 
             scad!(Rotate(90., vec3(1., 0., 0.)); extruded)
+        };
+        let extruded_yz = {
+            let extruded = 
+                scad!(LinearExtrude(extrude_params); yz_outline);
+
+            let initial_rotation = scad!(Rotate(90., vec3(1., 0., 0.)); extruded);
+
+            scad!(Rotate(90., vec3(0., 0., 1.)); initial_rotation)
         };
 
         scad!(Intersection;
         {
             extruded_xy,
-            extruded_xz
+            extruded_xz,
+            extruded_yz
+        })
+    }
+
+    fn extrude_canopy_edge(&self, object: ScadObject) -> ScadObject
+    {
+        let height = self.edge_height;
+
+        let extrude_params = LinExtrudeParams
+                 {
+                     height: height, .. Default::default()
+                 };
+
+        let extruded = scad!(LinearExtrude(extrude_params); object);
+
+        scad!(Translate(vec3(0., 0., -height)); extruded)
+    }
+
+    fn canopy_edge_cutout(&self) -> ScadObject
+    {
+        let offset = -(self.edge_thickness - self.edge_padding);
+
+        scad!(Offset(OffsetType::Delta(offset), false);
+        {
+            self.get_mid_section_outline()
+        })
+    }
+
+    fn get_canopy_screw_mounts(&self, height: f32) -> ScadObject
+    {
+        let extrude_params = LinExtrudeParams{
+            height: height
+            , .. Default::default()
+        };
+
+        scad!(Translate(vec3(0., 0., -self.edge_height));
+        {
+            scad!(LinearExtrude(extrude_params.clone()); 
+                  self.get_front_screw_tab_outline()),
+            scad!(LinearExtrude(extrude_params); 
+                  self.get_back_screw_tab_outline()),
+        })
+    }
+
+    fn get_front_fillet(&self, height: f32) -> ScadObject
+    {
+        let radius = self.front_section_corner_radius;
+
+        let centering = (false, true);
+        let main_size = vec2(self.radius, self.front_section_width);
+
+        let main_square = centered_square(main_size, centering);
+        let small_square = scad!(Offset(OffsetType::Delta(-radius), false);
+                    main_square.clone());
+        let rounded_square = scad!(Offset(OffsetType::Radius(radius), false);
+                    small_square);
+
+        let corners = scad!(Difference;
+        {
+            main_square.clone(),
+            rounded_square
+        });
+
+        let cutoff_square = scad!(Translate2d(vec2(self.radius / 2., 0.));
+        {
+            centered_square(vec2(self.radius/2., self.front_section_width),
+                    centering)
+        });
+
+        let outline = scad!(Difference;
+        {
+            scad!(Intersection;
+            {
+                main_square
+                , corners
+            })
+            , cutoff_square
+        });
+
+        let translated = scad!(Translate2d(vec2(-self.front_section_length, 0.));
+        {
+            outline
+        });
+
+        let extrude_params = LinExtrudeParams{
+            height: height * 2.,
+            center: true,
+            .. Default::default()
+        };
+
+        scad!(LinearExtrude(extrude_params); translated)
+    }
+
+    fn get_vtx_connector_hole(&self) -> ScadObject
+    {
+        let screw_section_diameter = 6.;
+        let screw_section_length = 2.5;
+        let outer_diameter = 8.;
+        let outer_length = self.canopy_thickness - screw_section_length + 5.;
+
+        let z_offset = self.canopy_max_height / 2.;
+
+        let angle = ((self.inner_width - self.back_outer_width) / 2.)
+                    .atan2(self.radius)
+                    .to_degrees();
+
+        //The cylinders that make up the hole
+        let small_cylinder = scad!(Cylinder(screw_section_length + 10., 
+                           Diameter(screw_section_diameter)));
+        let big_cylinder = 
+                    scad!(Cylinder(outer_length, Diameter(outer_diameter)));
+
+        let cutout = scad!(Union;
+        {
+            scad!(Translate(vec3(0., 0., -outer_length));
+            {
+                big_cylinder
+            }),
+            small_cylinder
+        });
+
+        //Putting the top at 0
+        let translated = scad!(Translate(vec3(0., 0., -screw_section_length));
+                               cutout);
+
+        //Moving the object along the back wall
+        let moved = scad!(Translate(vec3(-self.radius / 6., 0., 0.));
+                          translated);
+
+        let rotated = scad!(Rotate(angle, vec3(0., 0., 1.));
+        {
+            scad!(Rotate(90., vec3(1., 0., 0.)); moved)
+        });
+
+
+        //Positioning the object at the corner of the back part
+        let corner_pos = vec3(self.radius, -self.back_outer_width / 2., z_offset);
+
+        scad!(Translate(corner_pos);rotated)
+    }
+
+    fn get_canopy(&self) -> ScadObject
+    {
+        let screw_mount_height = 7.;
+
+        let body = scad!(Union;
+        {
+            self.get_canopy_outside(0.)
+            , self.get_canopy_screw_mounts(screw_mount_height)
+            , self.extrude_canopy_edge(self.get_mid_section_outline())
+        });
+
+        let camera_offset = 0.;
+        scad!(Difference;
+        {
+            body
+            , self.get_canopy_outside(-3.)
+            , self.get_camera_lens_hole(camera_offset)
+            , self.extrude_canopy_edge(self.canopy_edge_cutout())
+            , self.get_vtx_connector_hole()
+            , self.get_front_fillet(self.canopy_max_height)
         })
     }
 }
@@ -1063,13 +1253,14 @@ fn test_esc_stack(sfile: &mut ScadFile)
 
     let x_pos = 40.;
     let z_offset = 6.;
+    let z_pos = 25.;
     for i in 0..3
     {
         sfile.add_object(
-                scad!(Translate(vec3(x_pos, 0., 30. + (i as f32) * z_offset)); esc.clone())
+                scad!(Translate(vec3(x_pos, 0., z_pos + (i as f32) * z_offset)); esc.clone())
             );
         sfile.add_object(
-                scad!(Translate(vec3(x_pos, 0., 30. + (i as f32) * z_offset + 3.)); holder.clone())
+                scad!(Translate(vec3(x_pos, 0., z_pos + (i as f32) * z_offset + 3.)); holder.clone())
             );
     }
 }
@@ -1080,29 +1271,31 @@ fn main()
     let mut sfile = ScadFile::new();
     sfile.set_detail(20);
 
-    sfile.add_object(TricopterBody::new().get_body_bottom());
-    sfile.add_object(scad!(Translate(vec3(0., 0., 20.)); TricopterBody::new().get_body_top()));
-    sfile.add_object(scad!(Translate(vec3(0., 0., 40.)); TricopterBody::new().get_canopy_outside()));
-    //sfile.add_object(
-    //        add_named_color(
-    //            "steelblue",
-    //            scad!(Translate(vec3(0., 0., 30.)); NazeBoard::new().get_board())
-    //        )
-    //    );
-    //sfile.add_object(
-    //        add_named_color(
-    //            "dimgray",
-    //            scad!(Translate(vec3(-40., 0., 30.)); 
-    //            {
-    //                scad!(Rotate(-90., vec3(0., 1., 0.));
-    //                {
-    //                    BoardCamera::new().get_model(),
-    //                })
-    //            })
-    //        )
-    //    );
+    //sfile.add_object(TricopterBody::new().get_body_bottom());
+    //sfile.add_object(scad!(Translate(vec3(0., 0., 20.)); TricopterBody::new().get_body_top()));
+    sfile.add_object(scad!(Translate(vec3(0., 0., 40.)); TricopterBody::new().get_canopy()));
+    /*
+    sfile.add_object(
+            add_named_color(
+                "steelblue",
+                scad!(Translate(vec3(0., 0., 30.)); NazeBoard::new().get_board())
+            )
+        );
+    sfile.add_object(
+            add_named_color(
+                "dimgray",
+                scad!(Translate(vec3(-40., 0., 30.)); 
+                {
+                    scad!(Rotate(-90., vec3(0., 1., 0.));
+                    {
+                        BoardCamera::new().get_model(),
+                    })
+                })
+            )
+        );
 
     test_esc_stack(&mut sfile);
+    */
 
 
     sfile.write_to_file(String::from("out.scad"));
