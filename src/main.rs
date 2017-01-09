@@ -87,6 +87,7 @@ qstruct!(BoardCamera()
     thickness: f32 = 4.,
     lens_diameter: f32 = 17.,
     lens_length: f32 = 24.,
+    snowproof_padding_radus: f32 = 3.;
 });
 
 impl BoardCamera
@@ -112,7 +113,7 @@ impl BoardCamera
 
     pub fn get_lens_hole(&self) -> ScadObject
     {
-        let snowproofing_padding_radius = 3.;
+        let snowproofing_padding_radius = self.snowproof_padding_radus;
 
         let total_radius = snowproofing_padding_radius + self.lens_diameter / 2.;
 
@@ -120,6 +121,26 @@ impl BoardCamera
     }
 }
 
+fn get_camera_water_seal(camera: &BoardCamera, tricopter_body: TricopterBody) -> ScadObject
+{
+    let inner_radius = camera.lens_diameter / 2.;
+    let outer_radius = camera.snowproof_padding_radus + inner_radius;
+    let thickness = tricopter_body.canopy_thickness;
+    let outer_thickness = thickness + 5.;
+    let outer_shell_radius = outer_radius + 5.;
+
+    let shell_cube = {
+        let size = vec2(outer_shell_radius - inner_radius, outer_thickness);
+        let centering = (false, true);
+        centered_square(size, centering);
+    }
+
+    let outer_cutoff = {
+        let cube = centered_cube(vec2(outer_radius, thickness), (false, true));
+
+        scad!(Translate2d(vec2(outer_radius - inner_radius, 0.)); cube);
+    }
+}
 
 qstruct!(Esc()
 {
@@ -782,6 +803,9 @@ impl TricopterBody
 
     /**
       Returns a cylinder that cuts a hole for the camera
+
+      z_offset is the offset in the z axis from the bottom of the top part of
+      the frame
      */
     fn get_camera_lens_hole(&self, z_offset: f32) -> ScadObject
     {
