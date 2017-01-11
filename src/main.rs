@@ -31,8 +31,8 @@ qstruct!(NazeBoard()
 {
     hole_diameter: f32 = 3.,
     width: f32 = 36.,
-    hole_distance: f32 = 30.,
-    hole_padding_radius: f32 = hole_diameter / 2. + 1.5
+    hole_distance: f32 = 35.,
+    hole_padding_radius: f32 = hole_diameter / 2. + 1.,
 });
 
 impl NazeBoard
@@ -87,7 +87,7 @@ qstruct!(BoardCamera()
     thickness: f32 = 4.,
     lens_diameter: f32 = 17.,
     lens_length: f32 = 24.,
-    snowproof_padding_radus: f32 = 3.;
+    snowproof_padding_radus: f32 = 3.,
 });
 
 impl BoardCamera
@@ -121,7 +121,7 @@ impl BoardCamera
     }
 }
 
-fn get_camera_water_seal(camera: &BoardCamera, tricopter_body: TricopterBody) -> ScadObject
+fn get_camera_water_seal(camera: &BoardCamera, tricopter_body: &TricopterBody) -> ScadObject
 {
     let inner_radius = camera.lens_diameter / 2.;
     let outer_radius = camera.snowproof_padding_radus + inner_radius;
@@ -129,17 +129,33 @@ fn get_camera_water_seal(camera: &BoardCamera, tricopter_body: TricopterBody) ->
     let outer_thickness = thickness + 5.;
     let outer_shell_radius = outer_radius + 5.;
 
-    let shell_cube = {
+    let shell_square = {
         let size = vec2(outer_shell_radius - inner_radius, outer_thickness);
         let centering = (false, true);
-        centered_square(size, centering);
-    }
+        centered_square(size, centering)
+    };
 
     let outer_cutoff = {
-        let cube = centered_cube(vec2(outer_radius, thickness), (false, true));
+        let cube = centered_square(vec2(outer_radius, thickness), (false, true));
 
-        scad!(Translate2d(vec2(outer_radius - inner_radius, 0.)); cube);
-    }
+        scad!(Translate2d(vec2(outer_radius - inner_radius, 0.)); cube)
+    };
+
+    let outline = scad!(Difference;
+    {
+        shell_square,
+        outer_cutoff
+    });
+
+    let translated_outline = scad!(Translate2d(vec2(inner_radius, 0.));
+    {
+        outline
+    });
+
+    scad!(RotateExtrude(Default::default()); 
+    {
+        translated_outline
+    })
 }
 
 qstruct!(Esc()
@@ -250,6 +266,7 @@ fn get_cable_tie_hole(height: f32, z_rotation: f32) -> ScadObject
 qstruct!(TricopterBody()
 {
     radius: f32 = 80.,
+    top_height: f32 = 5.,
     height: f32 = 5.,
     outer_width: f32 = 23.,
     back_outer_width: f32 = 33.,
@@ -1297,7 +1314,9 @@ fn main()
 
     //sfile.add_object(TricopterBody::new().get_body_bottom());
     //sfile.add_object(scad!(Translate(vec3(0., 0., 20.)); TricopterBody::new().get_body_top()));
-    sfile.add_object(scad!(Translate(vec3(0., 0., 40.)); TricopterBody::new().get_canopy()));
+    //sfile.add_object(scad!(Translate(vec3(0., 0., 40.)); TricopterBody::new().get_canopy()));
+    sfile.add_object(NazeBoard::new().get_board());
+    //sfile.add_object(get_camera_water_seal(&BoardCamera::new(), &TricopterBody::new()));
     /*
     sfile.add_object(
             add_named_color(
