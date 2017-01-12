@@ -30,9 +30,8 @@ fn get_m3_screw(length: f32) -> ScadObject
 qstruct!(NazeBoard()
 {
     hole_diameter: f32 = 3.,
-    width: f32 = 36.,
-    hole_distance: f32 = 35.,
-    hole_padding_radius: f32 = hole_diameter / 2. + 1.,
+    hole_distance: f32 = 30.5,
+    hole_padding_radius: f32 = hole_diameter / 2. + 2.,
 });
 
 impl NazeBoard

@@ -132599,3 +132599,95 @@ difference()
 		}
 	}
 }
+##__start_of_new_file__##
+$fn=20;
+difference()
+{
+	hull()
+	{
+		union()
+		{
+			translate([-15.25,-15.25,0])
+			{
+				cylinder(h=3.5,r=2.5);
+			}
+			translate([-15.25,15.25,0])
+			{
+				cylinder(h=3.5,r=2.5);
+			}
+			translate([15.25,-15.25,0])
+			{
+				cylinder(h=3.5,r=2.5);
+			}
+			translate([15.25,15.25,0])
+			{
+				cylinder(h=3.5,r=2.5);
+			}
+		}
+	}
+	union()
+	{
+		translate([-15.25,-15.25,0])
+		{
+			cylinder(h=3.5,d=3);
+		}
+		translate([-15.25,15.25,0])
+		{
+			cylinder(h=3.5,d=3);
+		}
+		translate([15.25,-15.25,0])
+		{
+			cylinder(h=3.5,d=3);
+		}
+		translate([15.25,15.25,0])
+		{
+			cylinder(h=3.5,d=3);
+		}
+	}
+}
+##__start_of_new_file__##
+$fn=20;
+difference()
+{
+	hull()
+	{
+		union()
+		{
+			translate([-15.25,-15.25,0])
+			{
+				cylinder(h=3.5,r=3.5);
+			}
+			translate([-15.25,15.25,0])
+			{
+				cylinder(h=3.5,r=3.5);
+			}
+			translate([15.25,-15.25,0])
+			{
+				cylinder(h=3.5,r=3.5);
+			}
+			translate([15.25,15.25,0])
+			{
+				cylinder(h=3.5,r=3.5);
+			}
+		}
+	}
+	union()
+	{
+		translate([-15.25,-15.25,0])
+		{
+			cylinder(h=3.5,d=3);
+		}
+		translate([-15.25,15.25,0])
+		{
+			cylinder(h=3.5,d=3);
+		}
+		translate([15.25,-15.25,0])
+		{
+			cylinder(h=3.5,d=3);
+		}
+		translate([15.25,15.25,0])
+		{
+			cylinder(h=3.5,d=3);
+		}
+	}
+}
