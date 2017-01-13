@@ -406,6 +406,8 @@ impl TricopterBody
             {
                 self.get_body_shape(),
                 self.get_front_section(),
+                self.get_front_screw_tab_outline(),
+                self.get_back_screw_tab_outline(),
             }),
 
             scad!(Translate(vec3(0., 0., self.height));{
@@ -576,15 +578,17 @@ impl TricopterBody
     {
         let y_offset = self.arm_width / 2. + SCREW_DIAMETER + 1.;
 
+        let cylinder = scad!(Cylinder(self.get_bottom_total_height(), Diameter(SCREW_DIAMETER)));
         let cylinders = scad!(Translate(vec3(0., y_offset, 0.));
         {
-            scad!(Cylinder(self.get_bottom_total_height(), Diameter(SCREW_DIAMETER))),
+            cylinder.clone()
         });
 
         scad!(Union;
         {
             cylinders.clone(),
-            scad!(Mirror(vec3(0., 1., 0.)); cylinders)
+            scad!(Mirror(vec3(0., 1., 0.)); cylinders),
+            cylinder
         })
     }
 
@@ -1312,9 +1316,9 @@ fn main()
     sfile.set_detail(20);
 
     //sfile.add_object(TricopterBody::new().get_body_bottom());
-    //sfile.add_object(scad!(Translate(vec3(0., 0., 20.)); TricopterBody::new().get_body_top()));
+    sfile.add_object(scad!(Translate(vec3(0., 0., 20.)); TricopterBody::new().get_body_top()));
     //sfile.add_object(scad!(Translate(vec3(0., 0., 40.)); TricopterBody::new().get_canopy()));
-    sfile.add_object(NazeBoard::new().get_board());
+    //sfile.add_object(NazeBoard::new().get_board());
     //sfile.add_object(get_camera_water_seal(&BoardCamera::new(), &TricopterBody::new()));
     /*
     sfile.add_object(
