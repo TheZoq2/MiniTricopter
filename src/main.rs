@@ -18,7 +18,7 @@ fn get_m3_screw(length: f32) -> ScadObject
     let head_padding = 1.;
     let diameter = 3. + screw_padding;
     let head_diameter = 6. + head_padding;
-    let head_height = 3.;
+    let head_height = 2.;
 
     scad!(Union;
     {
@@ -31,7 +31,7 @@ qstruct!(NazeBoard()
 {
     hole_diameter: f32 = 3.,
     hole_distance: f32 = 30.5,
-    hole_padding_radius: f32 = hole_diameter / 2. + 2.,
+    hole_padding_radius: f32 = hole_diameter / 2. + 1.,
 });
 
 impl NazeBoard
@@ -77,6 +77,49 @@ impl NazeBoard
         }
 
         result
+    }
+
+    fn get_width(&self) -> f32
+    {
+        self.hole_distance + self.hole_padding_radius*2.
+    }
+}
+
+qstruct!(DysEsc()
+{
+    x_length: f32 = 40.,
+    y_length: f32 = 43.3,
+
+    extension_width: f32 = 30.
+});
+
+impl DysEsc
+{
+    fn get_board(&self) -> ScadObject
+    {
+        let height = 3.5;
+
+        let naze = NazeBoard::new();
+
+        let main = naze.get_board();
+
+        let extensions = scad!(Union;
+            {
+                centered_cube(vec3(self.extension_width, self.y_length, height), (true, true, false)),
+                centered_cube(vec3(self.x_length, self.extension_width, height), (true, true, false))
+            });
+
+        let union = scad!(Union;
+        {
+            main,
+            extensions
+        });
+
+        scad!(Difference;
+        {
+            union,
+            naze.get_holes(height)
+        })
     }
 }
 
@@ -181,7 +224,7 @@ impl Esc
 
 qstruct!(EscStack()
 {
-    layer_thickness: f32 = 3.,
+    layer_thickness: f32 = 2.,
     esc: Esc = Esc::new(),
     screw_padding: f32 = 2.
 });
@@ -220,7 +263,11 @@ impl EscStack
         let main = scad!(Hull;{
             self.place_object_at_holes(
                     scad!(Cylinder(self.layer_thickness, Radius(chamfer_radius)))
-                )
+                ),
+            centered_cube(
+                vec3(self.esc.width, self.esc.length, self.layer_thickness), 
+                (true, true, false)
+            ),
         });
 
         scad!(Difference;
@@ -266,10 +313,11 @@ qstruct!(TricopterBody()
 {
     radius: f32 = 80.,
     top_height: f32 = 5.,
-    height: f32 = 5.,
+    height: f32 = 4.,
     outer_width: f32 = 23.,
     back_outer_width: f32 = 33.,
     inner_width: f32 = 50.,
+    center_width: f32 = 56.,
 
     back_block_length_factor: f32 = 0.5,
 
@@ -296,7 +344,7 @@ qstruct!(TricopterBody()
 
     mounting_screw_outline_radius: f32 = 3.,
 
-    canopy_max_height: f32 = 20.,
+    canopy_max_height: f32 = 30.,
 });
 
 
@@ -375,7 +423,7 @@ impl TricopterBody
             , camera_box_cutout
             , camera_lens_hole
             , self.get_battery_strap_holes()
-            , self.place_object_at_motor_wire_hole(
+            , self.place_object_at_motor_wire_holes(
                         self.get_back_block_cable_hole())
             , self.get_cable_tie_holes()
         });
@@ -392,8 +440,6 @@ impl TricopterBody
     */
     pub fn get_body_top(&self) -> ScadObject
     {
-        let esc_stack_offset = 40.;
-
         let linear_extrude = LinExtrudeParams{
             center:false,
             height:self.height,
@@ -405,6 +451,7 @@ impl TricopterBody
             scad!(LinearExtrude(linear_extrude.clone());
             {
                 self.get_body_shape(),
+                self.get_mid_section_outline(),
                 self.get_front_section(),
                 self.get_front_screw_tab_outline(),
                 self.get_back_screw_tab_outline(),
@@ -414,27 +461,15 @@ impl TricopterBody
                 self.get_top_plate_canopy_edges()
             }),
         });
-        
+
         let camera_box = scad!(LinearExtrude(linear_extrude.clone());
             {
                 self.get_camera_box_top_cutout()
             });
 
-
-        let esc_stack_holes = {
-            let holes = EscStack::new()
-                .place_object_at_holes(get_m3_screw(self.height));
-
-            let rotated = scad!(Rotate(90., vec3(0., 0., 1.)); holes);
-
-            scad!(Translate(vec3(esc_stack_offset, 0., 0.)); rotated)
-
-        };
-
         let screwholes = scad!(Union;
         {
             NazeBoard::new().place_object_at_holes(get_m3_screw(self.height)),
-            esc_stack_holes
         });
 
         let with_holes = scad!(Difference;
@@ -637,8 +672,8 @@ impl TricopterBody
             na::Vector2::new(-self.front_section_length, self.front_section_width / 2.),
             na::Vector2::new(-self.front_section_length, -self.front_section_width / 2.),
             //Mid
-            na::Vector2::new(0., self.inner_width / 2.),
-            na::Vector2::new(0., -self.inner_width / 2.),
+            na::Vector2::new(0., self.center_width / 2.),
+            na::Vector2::new(0., -self.center_width / 2.),
             //Back
             na::Vector2::new(self.radius, self.back_outer_width / 2.),
             na::Vector2::new(self.radius, -self.back_outer_width / 2.)
@@ -779,13 +814,24 @@ impl TricopterBody
 
       This is the small hole that goes through the back block
      */
-    fn place_object_at_motor_wire_hole(&self, object: ScadObject) -> ScadObject
+    fn place_object_at_motor_wire_holes(&self, object: ScadObject) -> ScadObject
     {
         let padding = 1.5;
         let hole_x = self.radius * 3. / 4.;
         let hole_y = self.arm_width / 2. + self.motor_wire_hole_radius + padding;
 
-        scad!(Translate(vec3(hole_x, hole_y, 0.)); object)
+        let translated = scad!(Translate(vec3(hole_x, hole_y, 0.)); object);
+
+        let mirrored = scad!(Mirror(vec3(0., 1., 0.));
+        {
+            translated.clone()
+        });
+
+        scad!(Union;
+        {
+            translated,
+            mirrored
+        })
     }
 
     /**
@@ -802,8 +848,8 @@ impl TricopterBody
 
         scad!(Union;
         {
-            self.place_object_at_motor_wire_hole(hole),
-            self.place_object_at_motor_wire_hole(o_ring_hole)
+            self.place_object_at_motor_wire_holes(hole),
+            self.place_object_at_motor_wire_holes(o_ring_hole)
         })
     }
 
@@ -813,7 +859,7 @@ impl TricopterBody
      */
     fn get_battery_wire_hole(&self) -> ScadObject
     {
-        let radius = 3.;
+        let radius = 4.;
         let position = vec3(-self.radius / 3., 0., 0.);
         
         let hole = scad!(Cylinder(self.height, Radius(radius)));
@@ -1249,7 +1295,7 @@ impl TricopterBody
             , self.extrude_canopy_edge(self.get_mid_section_outline())
         });
 
-        let camera_offset = 0.;
+        let camera_offset = self.edge_height;
         scad!(Difference;
         {
             body
@@ -1262,6 +1308,39 @@ impl TricopterBody
     }
 }
 
+fn get_camera_cushion() -> ScadObject
+{
+    let size = vec3(41., 16., 3.);
+
+    let back_cushion_size = vec3(20., 3., size.x / 2.);
+
+    let led_holes = {
+        let cutout_size = vec3(10. * 2., 2., 100.);
+
+        let cube = centered_cube(cutout_size, (true, false, false));
+        let translated = scad!(Translate(vec3(size.x / 2., size.y - cutout_size.y, 0.)); cube);
+
+        let mirrored = scad!(Mirror(vec3(1., 0., 0.));
+        {
+            translated.clone(),
+        });
+        scad!(Union;{
+            translated,
+            mirrored
+        })
+    };
+
+
+    //scad!(Cube(size))
+    scad!(Difference;
+    {
+        scad!(Union;{
+            centered_cube(size, (true, false, false)),
+            centered_cube(back_cushion_size, (true, false, false))
+        }),
+        led_holes
+    })
+}
 
 use std::io::prelude::*;
 use std::fs::OpenOptions;
@@ -1317,8 +1396,12 @@ fn main()
 
     //sfile.add_object(TricopterBody::new().get_body_bottom());
     sfile.add_object(scad!(Translate(vec3(0., 0., 20.)); TricopterBody::new().get_body_top()));
-    //sfile.add_object(scad!(Translate(vec3(0., 0., 40.)); TricopterBody::new().get_canopy()));
+    //sfile.add_object(EscStack::new().get_mid_section());
+    //sfile.add_object(get_camera_cushion());
+    //sfile.add_object(scad!(Translate(vec3(0., 0., 35.)); TricopterBody::new().get_canopy()));
     //sfile.add_object(NazeBoard::new().get_board());
+    //sfile.add_object(scad!(Translate(vec3(0., 0., 27.));
+    //                       add_named_color("brown", DysEsc::new().get_board())));
     //sfile.add_object(get_camera_water_seal(&BoardCamera::new(), &TricopterBody::new()));
     /*
     sfile.add_object(
