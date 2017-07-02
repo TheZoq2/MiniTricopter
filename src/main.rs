@@ -12,6 +12,58 @@ use scad_util::add_named_color;
 
 const SCREW_DIAMETER: f32 = 3.5;
 
+fn get_vtx_mount() -> ScadObject
+{
+    let hole_diameter = 3.5;
+    let hole_padding = 2.;
+
+    let hole_edge_distance = 9.;
+    let vtx_thickness = 8.;
+    let vtx_width = 21.;
+
+    let put_at_hole = |object: ScadObject|
+    {
+        scad!(Union;
+        {
+            scad!(Translate2d(vec2(vtx_width/2. + (hole_edge_distance+vtx_thickness), 0.));
+            {
+                object.clone()
+            }),
+            scad!(Translate2d(vec2(-(vtx_width/2. + (hole_edge_distance+vtx_thickness)), 0.));
+            {
+                object.clone()
+            }),
+        })
+    };
+
+    let outer_holes = put_at_hole(scad!(Circle(Diameter(hole_diameter + hole_padding*2.))));
+
+    let center_box = centered_square(vec2(vtx_width, vtx_width), (true, true));
+
+    let outer_shape = scad!(Hull;
+    {
+        outer_holes,
+        center_box
+    });
+
+    let center_cutout = scad!(Scale2d(vec2(0.7, 0.7)); outer_shape.clone());
+
+    let screwhole = put_at_hole(scad!(Circle(Diameter(hole_diameter))));
+
+    let shape = scad!(Union;
+    {
+        scad!(Difference;
+        {
+            outer_shape,
+            screwhole,
+            center_cutout,
+        }),
+        centered_square(vec2(3., vtx_width), (true,true))
+    });
+
+    scad!(LinearExtrude(LinExtrudeParams{height: 1.5, .. Default::default()}); shape)
+}
+
 fn get_m3_screw(length: f32) -> ScadObject
 {
     let screw_padding = 0.5;
@@ -1395,7 +1447,8 @@ fn main()
     sfile.set_detail(20);
 
     //sfile.add_object(TricopterBody::new().get_body_bottom());
-    sfile.add_object(scad!(Translate(vec3(0., 0., 20.)); TricopterBody::new().get_body_top()));
+    //sfile.add_object(scad!(Translate(vec3(0., 0., 20.)); TricopterBody::new().get_body_top()));
+    sfile.add_object(get_vtx_mount());
     //sfile.add_object(EscStack::new().get_mid_section());
     //sfile.add_object(get_camera_cushion());
     //sfile.add_object(scad!(Translate(vec3(0., 0., 35.)); TricopterBody::new().get_canopy()));

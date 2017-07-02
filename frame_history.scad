@@ -144827,3 +144827,575 @@ translate([0,0,20])
 		}
 	}
 }
+##__start_of_new_file__##
+$fn=20;
+union()
+{
+	translate([27.5,0])
+	{
+		circle(d=7.5);
+	}
+	translate([-27.5,0])
+	{
+		circle(d=7.5);
+	}
+}
+##__start_of_new_file__##
+$fn=20;
+union()
+{
+	union()
+	{
+		translate([27.5,0])
+		{
+			circle(d=7.5);
+		}
+		translate([-27.5,0])
+		{
+			circle(d=7.5);
+		}
+	}
+	translate([-10.5,-10.5])
+	{
+		square([21,21]);
+	}
+}
+##__start_of_new_file__##
+$fn=20;
+hull()
+{
+	union()
+	{
+		translate([27.5,0])
+		{
+			circle(d=7.5);
+		}
+		translate([-27.5,0])
+		{
+			circle(d=7.5);
+		}
+	}
+	translate([-10.5,-10.5])
+	{
+		square([21,21]);
+	}
+}
+##__start_of_new_file__##
+$fn=20;
+difference()
+{
+	hull()
+	{
+		union()
+		{
+			translate([27.5,0])
+			{
+				circle(d=7.5);
+			}
+			translate([-27.5,0])
+			{
+				circle(d=7.5);
+			}
+		}
+		translate([-10.5,-10.5])
+		{
+			square([21,21]);
+		}
+	}
+	union()
+	{
+		translate([27.5,0])
+		{
+			circle(d=3.5);
+		}
+		translate([-27.5,0])
+		{
+			circle(d=3.5);
+		}
+	}
+}
+##__start_of_new_file__##
+$fn=20;
+linear_extrude(height=2,center=false,convecity=10,twist=0,slices=1);
+##__start_of_new_file__##
+$fn=20;
+linear_extrude(height=2,center=false,convecity=10,twist=0,slices=1)
+{
+	difference()
+	{
+		hull()
+		{
+			union()
+			{
+				translate([27.5,0])
+				{
+					circle(d=7.5);
+				}
+				translate([-27.5,0])
+				{
+					circle(d=7.5);
+				}
+			}
+			translate([-10.5,-10.5])
+			{
+				square([21,21]);
+			}
+		}
+		union()
+		{
+			translate([27.5,0])
+			{
+				circle(d=3.5);
+			}
+			translate([-27.5,0])
+			{
+				circle(d=3.5);
+			}
+		}
+	}
+}
+##__start_of_new_file__##
+$fn=20;
+linear_extrude(height=2,center=false,convecity=10,twist=0,slices=1)
+{
+	difference()
+	{
+		hull()
+		{
+			union()
+			{
+				translate([27.5,0])
+				{
+					circle(d=7.5);
+				}
+				translate([-27.5,0])
+				{
+					circle(d=7.5);
+				}
+			}
+			translate([-10.5,-10.5])
+			{
+				square([21,21]);
+			}
+		}
+		union()
+		{
+			translate([27.5,0])
+			{
+				circle(d=3.5);
+			}
+			translate([-27.5,0])
+			{
+				circle(d=3.5);
+			}
+		}
+		scale([0.7,0.7])
+		{
+			hull()
+			{
+				union()
+				{
+					translate([27.5,0])
+					{
+						circle(d=7.5);
+					}
+					translate([-27.5,0])
+					{
+						circle(d=7.5);
+					}
+				}
+				translate([-10.5,-10.5])
+				{
+					square([21,21]);
+				}
+			}
+		}
+	}
+}
+##__start_of_new_file__##
+$fn=20;
+linear_extrude(height=2,center=false,convecity=10,twist=0,slices=1)
+{
+	difference()
+	{
+		hull()
+		{
+			union()
+			{
+				translate([27.5,0])
+				{
+					circle(d=7.5);
+				}
+				translate([-27.5,0])
+				{
+					circle(d=7.5);
+				}
+			}
+			translate([-10.5,-10.5])
+			{
+				square([21,21]);
+			}
+		}
+		union()
+		{
+			translate([27.5,0])
+			{
+				circle(d=3.5);
+			}
+			translate([-27.5,0])
+			{
+				circle(d=3.5);
+			}
+		}
+		scale([0.7,0.7])
+		{
+			hull()
+			{
+				union()
+				{
+					translate([27.5,0])
+					{
+						circle(d=7.5);
+					}
+					translate([-27.5,0])
+					{
+						circle(d=7.5);
+					}
+				}
+				translate([-10.5,-10.5])
+				{
+					square([21,21]);
+				}
+			}
+		}
+		translate([-10.5,-1])
+		{
+			square([21,2]);
+		}
+	}
+}
+##__start_of_new_file__##
+$fn=20;
+linear_extrude(height=2,center=false,convecity=10,twist=0,slices=1)
+{
+	difference()
+	{
+		union()
+		{
+			hull()
+			{
+				union()
+				{
+					translate([27.5,0])
+					{
+						circle(d=7.5);
+					}
+					translate([-27.5,0])
+					{
+						circle(d=7.5);
+					}
+				}
+				translate([-10.5,-10.5])
+				{
+					square([21,21]);
+				}
+			}
+			translate([-10.5,-1])
+			{
+				square([21,2]);
+			}
+		}
+		union()
+		{
+			translate([27.5,0])
+			{
+				circle(d=3.5);
+			}
+			translate([-27.5,0])
+			{
+				circle(d=3.5);
+			}
+		}
+		scale([0.7,0.7])
+		{
+			hull()
+			{
+				union()
+				{
+					translate([27.5,0])
+					{
+						circle(d=7.5);
+					}
+					translate([-27.5,0])
+					{
+						circle(d=7.5);
+					}
+				}
+				translate([-10.5,-10.5])
+				{
+					square([21,21]);
+				}
+			}
+		}
+	}
+}
+##__start_of_new_file__##
+$fn=20;
+linear_extrude(height=2,center=false,convecity=10,twist=0,slices=1)
+{
+	union()
+	{
+		difference()
+		{
+			hull()
+			{
+				union()
+				{
+					translate([27.5,0])
+					{
+						circle(d=7.5);
+					}
+					translate([-27.5,0])
+					{
+						circle(d=7.5);
+					}
+				}
+				translate([-10.5,-10.5])
+				{
+					square([21,21]);
+				}
+			}
+			union()
+			{
+				translate([27.5,0])
+				{
+					circle(d=3.5);
+				}
+				translate([-27.5,0])
+				{
+					circle(d=3.5);
+				}
+			}
+			scale([0.7,0.7])
+			{
+				hull()
+				{
+					union()
+					{
+						translate([27.5,0])
+						{
+							circle(d=7.5);
+						}
+						translate([-27.5,0])
+						{
+							circle(d=7.5);
+						}
+					}
+					translate([-10.5,-10.5])
+					{
+						square([21,21]);
+					}
+				}
+			}
+		}
+		translate([-10.5,-1])
+		{
+			square([21,2]);
+		}
+	}
+}
+##__start_of_new_file__##
+$fn=20;
+linear_extrude(height=2,center=false,convecity=10,twist=0,slices=1)
+{
+	union()
+	{
+		difference()
+		{
+			hull()
+			{
+				union()
+				{
+					translate([27.5,0])
+					{
+						circle(d=7.5);
+					}
+					translate([-27.5,0])
+					{
+						circle(d=7.5);
+					}
+				}
+				translate([-10.5,-10.5])
+				{
+					square([21,21]);
+				}
+			}
+			union()
+			{
+				translate([27.5,0])
+				{
+					circle(d=3.5);
+				}
+				translate([-27.5,0])
+				{
+					circle(d=3.5);
+				}
+			}
+			scale([0.7,0.7])
+			{
+				hull()
+				{
+					union()
+					{
+						translate([27.5,0])
+						{
+							circle(d=7.5);
+						}
+						translate([-27.5,0])
+						{
+							circle(d=7.5);
+						}
+					}
+					translate([-10.5,-10.5])
+					{
+						square([21,21]);
+					}
+				}
+			}
+		}
+		translate([-1,-10.5])
+		{
+			square([2,21]);
+		}
+	}
+}
+##__start_of_new_file__##
+$fn=20;
+linear_extrude(height=2,center=false,convecity=10,twist=0,slices=1)
+{
+	union()
+	{
+		difference()
+		{
+			hull()
+			{
+				union()
+				{
+					translate([27.5,0])
+					{
+						circle(d=7.5);
+					}
+					translate([-27.5,0])
+					{
+						circle(d=7.5);
+					}
+				}
+				translate([-10.5,-10.5])
+				{
+					square([21,21]);
+				}
+			}
+			union()
+			{
+				translate([27.5,0])
+				{
+					circle(d=3.5);
+				}
+				translate([-27.5,0])
+				{
+					circle(d=3.5);
+				}
+			}
+			scale([0.7,0.7])
+			{
+				hull()
+				{
+					union()
+					{
+						translate([27.5,0])
+						{
+							circle(d=7.5);
+						}
+						translate([-27.5,0])
+						{
+							circle(d=7.5);
+						}
+					}
+					translate([-10.5,-10.5])
+					{
+						square([21,21]);
+					}
+				}
+			}
+		}
+		translate([-1.5,-10.5])
+		{
+			square([3,21]);
+		}
+	}
+}
+##__start_of_new_file__##
+$fn=20;
+linear_extrude(height=1.5,center=false,convecity=10,twist=0,slices=1)
+{
+	union()
+	{
+		difference()
+		{
+			hull()
+			{
+				union()
+				{
+					translate([27.5,0])
+					{
+						circle(d=7.5);
+					}
+					translate([-27.5,0])
+					{
+						circle(d=7.5);
+					}
+				}
+				translate([-10.5,-10.5])
+				{
+					square([21,21]);
+				}
+			}
+			union()
+			{
+				translate([27.5,0])
+				{
+					circle(d=3.5);
+				}
+				translate([-27.5,0])
+				{
+					circle(d=3.5);
+				}
+			}
+			scale([0.7,0.7])
+			{
+				hull()
+				{
+					union()
+					{
+						translate([27.5,0])
+						{
+							circle(d=7.5);
+						}
+						translate([-27.5,0])
+						{
+							circle(d=7.5);
+						}
+					}
+					translate([-10.5,-10.5])
+					{
+						square([21,21]);
+					}
+				}
+			}
+		}
+		translate([-1.5,-10.5])
+		{
+			square([3,21]);
+		}
+	}
+}
