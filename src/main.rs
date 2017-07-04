@@ -17,7 +17,7 @@ fn get_vtx_mount() -> ScadObject
     let hole_diameter = 3.5;
     let hole_padding = 2.;
 
-    let hole_edge_distance = 9.;
+    let hole_edge_distance = 8.;
     let vtx_thickness = 8.;
     let vtx_width = 21.;
 
@@ -46,7 +46,7 @@ fn get_vtx_mount() -> ScadObject
         center_box
     });
 
-    let center_cutout = scad!(Scale2d(vec2(0.7, 0.7)); outer_shape.clone());
+    let center_cutout = scad!(Scale2d(vec2(0.3, 0.3)); outer_shape.clone());
 
     let screwhole = put_at_hole(scad!(Circle(Diameter(hole_diameter))));
 
