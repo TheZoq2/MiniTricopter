@@ -396,7 +396,9 @@ qstruct!(TricopterBody()
 
     mounting_screw_outline_radius: f32 = 3.,
 
-    canopy_max_height: f32 = 30.,
+    canopy_max_height: f32 = 31.,
+    screw_mount_height: f32 = 7.,
+    canopy_bottom_min_height: f32 = screw_mount_height,
 });
 
 
@@ -1120,12 +1122,15 @@ impl TricopterBody
         let bottom_offset = additional_height;
 
         let max_height = self.canopy_max_height;
+        
+        let front_offset = 10.;
 
         let points = vec!(
             vec2(-self.front_section_length, bottom_offset)
-            , vec2(-self.front_section_length, max_height)
+            , vec2(-self.front_section_length, max_height - front_offset)
+            , vec2(-self.front_section_length + front_offset, max_height)
             , vec2(self.radius * 2. / 8., max_height)
-            , vec2(self.radius, 0.)
+            , vec2(self.radius, self.canopy_bottom_min_height)
             , vec2(self.radius, bottom_offset)
         );
 
@@ -1136,7 +1141,7 @@ impl TricopterBody
     {
         let bottom_offset = additional_height;
 
-        let top_width = self.inner_width * 3. / 4.;
+        let top_width = self.inner_width * 7. / 8.;
 
         let triangle_height_above_canopy = top_width / 2.;
 
@@ -1338,12 +1343,11 @@ impl TricopterBody
 
     fn get_canopy(&self) -> ScadObject
     {
-        let screw_mount_height = 7.;
 
         let body = scad!(Union;
         {
             self.get_canopy_outside(0.)
-            , self.get_canopy_screw_mounts(screw_mount_height)
+            , self.get_canopy_screw_mounts(self.screw_mount_height)
             , self.extrude_canopy_edge(self.get_mid_section_outline())
         });
 
@@ -1354,7 +1358,6 @@ impl TricopterBody
             , self.get_canopy_outside(-3.)
             , self.get_camera_lens_hole(camera_offset)
             , self.extrude_canopy_edge(self.canopy_edge_cutout())
-            , self.get_vtx_connector_hole()
             , self.get_front_fillet(self.canopy_max_height)
         })
     }
