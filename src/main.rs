@@ -759,7 +759,7 @@ impl TricopterBody
 
 
         let outer_radius_offset =
-                -self.canopy_thickness
+                - self.canopy_thickness
                 + self.edge_thickness
                 - self.edge_padding;
 
@@ -1124,7 +1124,7 @@ impl TricopterBody
         let points = vec!(
             vec2(-self.front_section_length, bottom_offset)
             , vec2(-self.front_section_length, max_height)
-            , vec2(self.radius * 7. / 8., max_height)
+            , vec2(self.radius * 2. / 8., max_height)
             , vec2(self.radius, 0.)
             , vec2(self.radius, bottom_offset)
         );
@@ -1448,10 +1448,10 @@ fn main()
 
     //sfile.add_object(TricopterBody::new().get_body_bottom());
     //sfile.add_object(scad!(Translate(vec3(0., 0., 20.)); TricopterBody::new().get_body_top()));
-    sfile.add_object(get_vtx_mount());
+    //sfile.add_object(get_vtx_mount());
     //sfile.add_object(EscStack::new().get_mid_section());
     //sfile.add_object(get_camera_cushion());
-    //sfile.add_object(scad!(Translate(vec3(0., 0., 35.)); TricopterBody::new().get_canopy()));
+    sfile.add_object(scad!(Translate(vec3(0., 0., 35.)); TricopterBody::new().get_canopy()));
     //sfile.add_object(NazeBoard::new().get_board());
     //sfile.add_object(scad!(Translate(vec3(0., 0., 27.));
     //                       add_named_color("brown", DysEsc::new().get_board())));
