@@ -399,6 +399,7 @@ qstruct!(TricopterBody()
     canopy_max_height: f32 = 31.,
     screw_mount_height: f32 = 7.,
     canopy_bottom_min_height: f32 = screw_mount_height,
+    screwhead_diameter: f32 = 6.5,
 });
 
 
@@ -492,8 +493,25 @@ impl TricopterBody
     /**
       Main function for the top section of the body
     */
-    pub fn get_body_top(&self) -> ScadObject
+    pub fn get_body_top(&self, filter_front: bool) -> ScadObject
     {
+        let front_back_spliter = {
+            let main_cube = centered_cube(vec3(100., 100., 100.), (false, true, false));
+            let lower_cube = scad!(Translate(vec3(3., 0., 0.)); {
+                centered_cube(
+                    vec3(100., 100., self.top_height / 2.),
+                    (false, true, false)
+                )});
+
+            self.place_object_at_motor_wire_holes(scad!(Union; {
+                scad!(Translate(vec3(0., 0., self.top_height / 2.)); {
+                    main_cube,
+                }),
+                lower_cube
+            }))
+        };
+
+
         let linear_extrude = LinExtrudeParams{
             center:false,
             height:self.height,
@@ -538,10 +556,23 @@ impl TricopterBody
             camera_box,
         });
 
-        scad!(Intersection;{
+        let full_shape = scad!(Intersection;{
             with_holes,
             self.get_side_bounds()
-        })
+        });
+
+        if filter_front {
+            scad!(Difference; {
+                full_shape,
+                front_back_spliter
+            })
+        }
+        else {
+            scad!(Intersection; {
+                full_shape,
+                front_back_spliter
+            })
+        }
     }
 
     /**
@@ -999,19 +1030,17 @@ impl TricopterBody
         let outline_circles = 
             self.place_object_at_front_mount_locations(outline_circle);
 
-        let hull = scad!(Hull;
+        scad!(Hull;
         {
             outline_circles
-        });
+        })
+    }
 
-        let screwhole = scad!(Circle(Diameter(SCREW_DIAMETER)));
+    fn get_front_screwholes(&self, size: CircleType) -> ScadObject {
+        let screwhole = scad!(Circle(size));
         let screwholes = self.place_object_at_front_mount_locations(screwhole);
 
-        scad!(Difference;
-        {
-            hull,
-            screwholes
-        })
+        screwholes
     }
 
     /**
@@ -1025,31 +1054,45 @@ impl TricopterBody
 
         let x_start = self.radius - outline_radius;
         let x_end = self.radius + outline_radius;
-        let y_separation = self.outer_width * 7. / 8.;
 
         let hull = scad!(Hull;{
             scad!(Translate2d(vec2(x_start, 0.)); outline_circle.clone()),
             scad!(Translate2d(vec2(x_end, 0.)); outline_circle.clone()),
         });
 
-        let screwhole = {
-            let circle = scad!(Circle(Diameter(SCREW_DIAMETER)));
+        scad!(Difference;
+        {
+            self.place_object_at_back_screwholes(hull),
+        })
+    }
+
+    fn circle_at_back_screwholes(&self, size: CircleType) -> ScadObject {
+        let outline_radius = self.mounting_screw_outline_radius;
+
+        let x_end = self.radius + outline_radius;
+
+        let hole = {
+            let circle = scad!(Circle(size));
 
             scad!(Translate2d(vec2(x_end, 0.)); circle)
         };
 
-        let difference = scad!(Difference;
+        scad!(Difference;
         {
-            hull,
-            screwhole
-        });
+            self.place_object_at_back_screwholes(hole)
+        })
+    }
+
+    fn place_object_at_back_screwholes(&self, object: ScadObject) -> ScadObject {
+        let y_separation = self.outer_width * 7. / 8.;
 
         scad!(Union;
         {
-            scad!(Translate2d(vec2(0., y_separation / 2.)); difference.clone()),
-            scad!(Translate2d(vec2(0., -y_separation / 2.)); difference)
+            scad!(Translate2d(vec2(0., y_separation / 2.)); object.clone()),
+            scad!(Translate2d(vec2(0., -y_separation / 2.)); object)
         })
     }
+
 
     /**
       Returns the hole for routing cables thorugh the back section of the bottom
@@ -1196,21 +1239,64 @@ impl TricopterBody
             scad!(Rotate(90., vec3(0., 0., 1.)); initial_rotation)
         };
 
+        let canopy_front_roundoff = {
+            let outline = {
+                let roundoff_amount = 10.;
+                let front_length = self.front_section_length;
+                let points = vec!(
+                    vec2(200., self.outer_width),
+                    vec2(-front_length + roundoff_amount, self.back_outer_width),
+                    vec2(-front_length, self.outer_width - roundoff_amount),
+                    vec2(-front_length, -self.outer_width + roundoff_amount),
+                    vec2(-front_length + roundoff_amount, -self.back_outer_width),
+                    vec2(200., -self.outer_width)
+                );
+
+                scad!(Polygon(PolygonParameters::new(points)))
+            };
+
+            let extrude_params = LinExtrudeParams
+            {
+                height:500.,
+                center: true,
+                ..Default::default()
+            };
+
+            let extruded = scad!(LinearExtrude(extrude_params); {
+                offset_function(outline)
+            });
+
+            let shallow = {
+                let rotated = scad!(Rotate(30., vec3(0., 1., 0.)); extruded.clone());
+                scad!(Translate(vec3(0., 0., 7.)); rotated)
+            };
+            let steep = {
+                let rotated = scad!(Rotate(60., vec3(0., 1., 0.)); extruded);
+                scad!(Translate(vec3(0., 0., -9.)); rotated)
+            };
+            scad!(Intersection; {
+                shallow,
+                steep
+            })
+        };
+
         scad!(Intersection;
         {
             extruded_xy,
             extruded_xz,
-            extruded_yz
+            extruded_yz,
+            canopy_front_roundoff
         })
     }
 
-    fn extrude_canopy_edge(&self, object: ScadObject) -> ScadObject
+    fn extrude_canopy_edge(&self, object: ScadObject, extra_height: f32) -> ScadObject
     {
         let height = self.edge_height;
 
         let extrude_params = LinExtrudeParams
                  {
-                     height: height, .. Default::default()
+                     height: height + extra_height,
+                     .. Default::default()
                  };
 
         let extruded = scad!(LinearExtrude(extrude_params); object);
@@ -1228,7 +1314,7 @@ impl TricopterBody
         })
     }
 
-    fn get_canopy_screw_mounts(&self, height: f32) -> ScadObject
+    fn get_canopy_screw_tabs(&self, height: f32) -> ScadObject
     {
         let extrude_params = LinExtrudeParams{
             height: height
@@ -1241,6 +1327,33 @@ impl TricopterBody
                   self.get_front_screw_tab_outline()),
             scad!(LinearExtrude(extrude_params); 
                   self.get_back_screw_tab_outline()),
+        })
+    }
+
+    fn get_canopy_screwholes(&self, screw_length: f32) -> ScadObject {
+        let screwhole_extrude_params = LinExtrudeParams{
+            height: screw_length
+            , .. Default::default()
+        };
+        let screwhead_extrude_params = LinExtrudeParams{
+            height: self.canopy_max_height
+            , .. Default::default()
+        };
+
+        let head_holes = scad!(LinearExtrude(screwhead_extrude_params); {
+            self.get_front_screwholes(Diameter(self.screwhead_diameter)),
+            self.circle_at_back_screwholes(Diameter(self.screwhead_diameter))
+        });
+
+        let holes = scad!(LinearExtrude(screwhole_extrude_params); {
+            self.get_front_screwholes(Diameter(SCREW_DIAMETER)),
+            self.circle_at_back_screwholes(Diameter(SCREW_DIAMETER))
+        });
+        scad!(Union; {
+            scad!(Translate(vec3(0., 0., -self.edge_height)); holes),
+            scad!(Translate(vec3(0., 0., screw_length - self.edge_height)); {
+                head_holes
+            })
         })
     }
 
@@ -1343,12 +1456,16 @@ impl TricopterBody
 
     fn get_canopy(&self) -> ScadObject
     {
+        let extra_offset = 1.;
+        let canopy_edge = scad!(Offset(OffsetType::Radius(extra_offset), false); {
+            self.get_mid_section_outline()
+        });
 
         let body = scad!(Union;
         {
-            self.get_canopy_outside(0.)
-            , self.get_canopy_screw_mounts(self.screw_mount_height)
-            , self.extrude_canopy_edge(self.get_mid_section_outline())
+            self.get_canopy_outside(extra_offset)
+            , self.get_canopy_screw_tabs(self.screw_mount_height)
+            , self.extrude_canopy_edge(canopy_edge, 3.)
         });
 
         let camera_offset = self.edge_height;
@@ -1357,8 +1474,9 @@ impl TricopterBody
             body
             , self.get_canopy_outside(-3.)
             , self.get_camera_lens_hole(camera_offset)
-            , self.extrude_canopy_edge(self.canopy_edge_cutout())
-            , self.get_front_fillet(self.canopy_max_height)
+            , self.extrude_canopy_edge(self.canopy_edge_cutout(), 0.)
+            , self.get_canopy_screwholes(self.screw_mount_height)
+            // , self.get_front_fillet(self.canopy_max_height)
         })
     }
 }
@@ -1450,7 +1568,7 @@ fn main()
     sfile.set_detail(20);
 
     //sfile.add_object(TricopterBody::new().get_body_bottom());
-    //sfile.add_object(scad!(Translate(vec3(0., 0., 20.)); TricopterBody::new().get_body_top()));
+    // sfile.add_object(scad!(Translate(vec3(0., 0., 20.)); TricopterBody::new().get_body_top(true)));
     //sfile.add_object(get_vtx_mount());
     //sfile.add_object(EscStack::new().get_mid_section());
     //sfile.add_object(get_camera_cushion());
