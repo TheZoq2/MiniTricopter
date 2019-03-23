@@ -1,5 +1,6 @@
 target
 *.scad
 rusty-tags.vi
+*.stl
 
 Cargo.lock
