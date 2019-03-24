@@ -8,7 +8,11 @@ use scad::*;
 
 use std::string::String;
 
-use scad_util::{add_named_color, constants::x_axis};
+use scad_util::{
+    add_named_color,
+    constants::{z_axis, x_axis, y_axis},
+    nut
+};
 
 const SCREW_DIAMETER: f32 = 3.5;
 
@@ -400,6 +404,12 @@ qstruct!(TricopterBody()
     screw_mount_height: f32 = 7.,
     canopy_bottom_min_height: f32 = screw_mount_height,
     screwhead_diameter: f32 = 6.5,
+
+    side_plate_arc_width: f32 = 36.,
+    side_plate_arc_height: f32 = 19.,
+    side_plate_thickness: f32 = 2.,
+    side_plate_mount_length: f32 = 15.,
+    side_plate_front_screw_top_offset: f32 = 7.,
 });
 
 
@@ -1479,7 +1489,271 @@ impl TricopterBody
             // , self.get_front_fillet(self.canopy_max_height)
         })
     }
+
+    fn get_side_plate_mount(&self) -> ScadObject {
+        // The finnished part is bent outwards indicating that the inner shape is
+        // too small, this is compensation for that.
+        let padding = 4.;
+
+        let thickness = self.side_plate_thickness;
+        let base_height = self.top_height + thickness * 2.;
+        let length = self.side_plate_mount_length;
+        let arch_width = self.side_plate_arc_width;
+        let arch_height = self.side_plate_arc_height;
+        let base_outer_shape = {
+            let base = self.get_body_shape();
+
+            scad!(Offset(OffsetType::Delta(thickness + padding/2.), false); base)
+        };
+
+        let base_extruded = scad!(LinearExtrude(
+            LinExtrudeParams {height: base_height, .. Default::default()}
+        ); base_outer_shape);
+
+        let inner_cutout = {
+            let base = self.get_body_shape();
+
+            let offset = scad!(Offset(OffsetType::Delta(-5.), false); base);
+
+            scad!(LinearExtrude(LinExtrudeParams {
+                height: base_height-thickness,
+                .. Default::default()
+            }); offset)
+        };
+
+        let inner_inner_cutout = {
+            let base = self.get_body_shape();
+
+            let offset = scad!(Offset(OffsetType::Delta(padding/2.), false); base);
+
+            let shape = scad!(LinearExtrude(LinExtrudeParams {
+                height: self.top_height,
+                .. Default::default()
+            }); offset);
+
+            scad!(Translate(vec3(0., 0., thickness)); {
+                shape
+            })
+        };
+
+        let back_cutout = {
+            let shape = centered_cube(vec3(100., 100., 100.), (false, true, true));
+
+            scad!(Translate(x_axis()*self.radius*self.back_block_length_factor); {
+                shape
+            })
+        };
+
+        let front_cutout = {
+            let shape = centered_cube(vec3(500., 500., 500.), (false, true, true));
+
+            let x_trans = self.radius * self.back_block_length_factor-length;
+            scad!(Translate(x_axis() * x_trans); {
+                scad!(Mirror(x_axis()); shape)
+            })
+        };
+
+        let arch_outer = {
+            let height = base_height + arch_height + thickness;
+            let width = arch_width;
+            centered_cube(vec3(100., width, height), (false, true, false))
+        };
+        let arch_inner = {
+            let height = arch_height + base_height - thickness * 2.;
+            let width = arch_width - thickness * 2.;
+            let shape = centered_cube(
+                vec3(100., width, height),
+                (false, true, false)
+            );
+            scad!(Translate(z_axis() * thickness * 2.); {shape})
+        };
+
+        scad!(Difference; {
+            scad!(Union; {
+                base_extruded,
+                arch_outer
+            }),
+            inner_cutout,
+            inner_inner_cutout,
+            back_cutout,
+            front_cutout,
+            arch_inner
+        })
+    }
+
+    fn side_plate_shape(&self) -> ScadObject {
+        let back_length = self.radius * self.back_block_length_factor;
+        let back_height = self.side_plate_arc_height;
+        let thickness = self.side_plate_thickness;
+        let arch_length = self.side_plate_mount_length;
+
+        let center_height = 27.;
+        let center_length = 36.;
+        let front_height = 20.;
+        let front_length = 45.;
+        let esc_height = 6.;
+        let groove_depth = 1.5;
+        let screw_diameter = 3.2;
+
+        let shape = Polygon(PolygonParameters::new(vec!{
+            vec2(-back_length, thickness),
+            vec2(-back_length, back_height + thickness),
+            vec2(-center_length / 2., center_height),
+            vec2(center_length / 2., center_height),
+            vec2(front_length, front_height),
+            vec2(front_length, 0.),
+            vec2(center_length/2., 0.),
+            vec2(center_length/2., esc_height),
+            vec2(-center_length/2., esc_height),
+            vec2(-center_length/2., 0.),
+            vec2(-(back_length - arch_length), 0.),
+            vec2(-(back_length - arch_length), thickness),
+        }));
+
+        let holes = {
+            let hole_shape = scad!(Circle(Diameter(screw_diameter)));
+
+            // Screwholes
+            let back_x_offset = back_length - arch_length / 2.;
+            let back_low_pos = vec2(-back_x_offset, back_height/3.);
+            let back_high_pos = vec2(-back_x_offset, 3.*back_height/4.);
+            let back_low = scad!(Translate2d(back_low_pos); hole_shape.clone());
+            let back_high = scad!(Translate2d(back_high_pos); hole_shape.clone());
+
+            let fc_hole = {
+                let y_offset = 14.;
+                let height = 6.;
+                let hole = centered_square(
+                    vec2(center_length, height),
+                    (true, true)
+                );
+                scad!(Translate2d(vec2(0., y_offset)); hole)
+            };
+
+            scad!(Union; {
+                back_low,
+                back_high,
+                fc_hole
+            })
+        };
+
+        let groove_outline = {
+            let y_offset = 14.;
+            let width = 7.;
+            let x_offset = center_length - width/2.;
+
+            let shape = centered_square(vec2(width, 100.), (true, false));
+            let back = scad!(Translate2d(vec2(-x_offset / 2., y_offset)); {
+                shape.clone()
+            });
+            let front = scad!(Translate2d(vec2(x_offset / 2., y_offset)); {
+                shape
+            });
+
+            scad!(Union; {
+                back,
+                front
+            })
+        };
+
+        let (front_nut_cut, front_nut_outer) = {
+            let x_offset = center_length / 2. + (front_length - center_length /2.) / 2.;
+            let y_padding = self.side_plate_front_screw_top_offset;
+            let y_offset = front_height
+                + (center_height - front_height) / 2.
+                - y_padding;
+            let extra_height = 2.;
+            let inner_nut_offset = 1.5;
+            let inner_nut_width = 5.3;
+            let outer_nut_width = inner_nut_width + 5.;
+
+            let hole = scad!(Cylinder(100., Diameter(screw_diameter)));
+            let nut_outer = {
+                let shape = nut(outer_nut_width, extra_height);
+                scad!(Translate(vec3(0., 0., thickness)); shape)
+            };
+
+            let nut_inner = {
+                let shape = nut(inner_nut_width, 100.);
+                scad!(Translate(vec3(0., 0., inner_nut_offset)); shape)
+            };
+
+            let position = |obj| {
+                scad!(Mirror(z_axis()); {
+                    scad!(Translate(vec3(x_offset, y_offset, -thickness)); {obj})
+                })
+            };
+
+            let cutout = scad!(Union; {
+                nut_inner,
+                hole
+            });
+
+            (position(cutout), position(nut_outer))
+        };
+
+        let outer_extruded = {
+            let shape = scad!(Difference; {
+                scad!(shape),
+                holes
+            });
+
+            let extrude_params = LinExtrudeParams{
+                height: thickness,
+                .. Default::default()
+            };
+            scad!(LinearExtrude(extrude_params); shape)
+        };
+        let grooves = {
+            let extrude_params = LinExtrudeParams{
+                height: groove_depth,
+                .. Default::default()
+            };
+            scad!(LinearExtrude(extrude_params); groove_outline)
+        };
+
+        scad!(Difference; {
+            scad!(Union; {
+                outer_extruded,
+                front_nut_outer
+            }),
+            grooves,
+            front_nut_cut
+        })
+    }
+
+    fn side_plate_front_bracket(&self) -> ScadObject {
+        let thickness = self.side_plate_thickness;
+        let hole_top_offset = self.side_plate_front_screw_top_offset;
+        let hole_diameter = 3.7;
+
+        let width = 9.;
+        let z_size = self.side_plate_arc_width + thickness * 2.;
+
+        let shape = scad!(Union; {
+            nut(width, z_size),
+            centered_cube(
+                vec3(width, hole_top_offset + thickness, z_size),
+                (true, false, false)
+            ),
+        });
+
+        let hole = scad!(Cylinder(z_size, Diameter(hole_diameter)));
+        let cutout = scad!(Translate(vec3(0., 0., thickness)); {
+            centered_cube(
+                vec3(100., hole_top_offset*2., self.side_plate_arc_width),
+                (true, true, false)
+            )
+        });
+
+        scad!(Difference; {
+            shape,
+            hole,
+            cutout
+        })
+    }
 }
+
 
 fn get_camera_cushion() -> ScadObject
 {
@@ -1572,11 +1846,15 @@ fn main()
     //sfile.add_object(get_vtx_mount());
     //sfile.add_object(EscStack::new().get_mid_section());
     //sfile.add_object(get_camera_cushion());
-    sfile.add_object(scad!(Translate(vec3(0., 0., 35.)); TricopterBody::new().get_canopy()));
+    // sfile.add_object(scad!(Translate(vec3(0., 0., 35.)); TricopterBody::new().get_canopy()));
     //sfile.add_object(NazeBoard::new().get_board());
     //sfile.add_object(scad!(Translate(vec3(0., 0., 27.));
     //                       add_named_color("brown", DysEsc::new().get_board())));
     //sfile.add_object(get_camera_water_seal(&BoardCamera::new(), &TricopterBody::new()));
+    // sfile.add_object(TricopterBody::new().get_body_bottom());
+    // sfile.add_object(TricopterBody::new().get_side_plate_mount());
+    // sfile.add_object(TricopterBody::new().side_plate_shape());
+    sfile.add_object(TricopterBody::new().side_plate_front_bracket());
     /*
     sfile.add_object(
             add_named_color(
