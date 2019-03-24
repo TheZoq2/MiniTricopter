@@ -1,14 +1,14 @@
 #![allow(dead_code)]
 #[macro_use]
-extern crate scad_generator;
+extern crate scad;
 extern crate scad_util;
 extern crate nalgebra as na;
 
-use scad_generator::*;
+use scad::*;
 
 use std::string::String;
 
-use scad_util::add_named_color;
+use scad_util::{add_named_color, constants::x_axis};
 
 const SCREW_DIAMETER: f32 = 3.5;
 
