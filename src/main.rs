@@ -1755,6 +1755,137 @@ impl TricopterBody
 }
 
 
+qstruct!(ServoMount() {
+    servo_width: f32 = 12.25,
+    servo_depth: f32 = 22.,
+    servo_height: f32 = 28.,
+    servo_tab_height: f32 = 4.6,
+    boom_width: f32 = 11.,
+    side_thickness: f32 = 2.,
+    prop_clearance: f32 = 10.,
+    top_offset: f32 = 7.,
+});
+
+impl ServoMount {
+    fn full(&self) -> ScadObject {
+        let extrude_params = LinExtrudeParams {
+            height: self.servo_depth,
+            .. Default::default()
+        };
+
+        let shape = scad!(LinearExtrude(extrude_params); {
+                self.outline()
+            });
+
+        let to_keep = {
+            let outline = {
+                let points = vec![
+                    vec2(-10., -10.),
+                    vec2(-10., self.servo_height + self.boom_width),
+                    vec2(
+                        self.servo_depth - self.prop_clearance,
+                        self.servo_height + self.boom_width
+                    ),
+                    vec2(
+                        self.servo_depth - self.prop_clearance,
+                        self.servo_height
+                    ),
+                    vec2(self.servo_depth, self.boom_width),
+                    vec2(self.servo_depth, -10.),
+                ];
+
+                scad!(Polygon(PolygonParameters::new(points)))
+            };
+
+            let extrude_params = LinExtrudeParams {
+                height: 100.,
+                center: true,
+                .. Default::default()
+            };
+
+            scad!(Rotate(-90., y_axis()); {
+                scad!(LinearExtrude(extrude_params); outline)
+            })
+        };
+
+        scad!(Intersection; {
+            scad!(Union; {
+                shape.clone(),
+                scad!(Mirror(vec3(1., 0., 0.)); shape)
+            }),
+            to_keep
+        })
+    }
+    fn outline(&self) -> ScadObject {
+        let half_outer_outline = {
+            let boom_x = self.boom_width / 2. + self.side_thickness;
+            let servo_x = self.servo_width / 2. + self.side_thickness;
+            let servo_y_start = self.boom_width;
+            let top_tab_start = self.servo_height + self.boom_width
+                    - self.side_thickness;
+            let tab_length = 5.;
+
+            vec!(
+                vec2(0., -self.side_thickness),
+                vec2(boom_x, -self.side_thickness),
+                vec2(boom_x, self.boom_width / 2.),
+                vec2(servo_x, servo_y_start),
+                vec2(
+                    servo_x + 1.,
+                    servo_y_start + self.servo_tab_height
+                ),
+                vec2(servo_x, top_tab_start - self.top_offset),
+                vec2(servo_x + tab_length, top_tab_start - self.top_offset),
+                vec2(
+                    servo_x + tab_length,
+                    self.servo_height + self.boom_width - self.top_offset
+                ),
+                vec2(0., self.servo_height + self.boom_width - self.top_offset),
+            )
+        };
+
+        let servo_mount_block_outline = {
+            let top_width = 14.6;
+            let bottom_width = 12.4;
+            let height = 8.7;
+            let bottom_offset = 2.;
+
+            let points = vec!(
+                    vec2(-bottom_width/2., -bottom_offset),
+                    vec2(bottom_width/2., -bottom_offset),
+                    vec2(top_width/2., height-bottom_offset),
+                    vec2(-top_width/2., height-bottom_offset)
+                );
+            scad!(Translate2d(vec2(0., self.boom_width)); {
+                scad!(Polygon(PolygonParameters::new(points)))
+            })
+        };
+
+        let boom_outline = centered_square(
+            vec2(self.boom_width, self.boom_width), (true, false)
+        );
+
+        let servo_outline = {
+            let shape = centered_square(
+                vec2(self.servo_width, self.servo_height), (true, false)
+            );
+            scad!(Translate2d(vec2(0., self.boom_width)); shape)
+        };
+
+        scad!(Difference; {
+            scad!(Polygon(PolygonParameters::new(half_outer_outline))),
+            boom_outline,
+            servo_outline,
+            servo_mount_block_outline
+        })
+    }
+
+    fn flex_holder(&self) -> ScadObject {
+        unimplemented!();
+    }
+}
+
+
 fn get_camera_cushion() -> ScadObject
 {
     let size = vec3(41., 16., 3.);
@@ -1854,7 +1985,8 @@ fn main()
     // sfile.add_object(TricopterBody::new().get_body_bottom());
     // sfile.add_object(TricopterBody::new().get_side_plate_mount());
     // sfile.add_object(TricopterBody::new().side_plate_shape());
-    sfile.add_object(TricopterBody::new().side_plate_front_bracket());
+    // sfile.add_object(TricopterBody::new().side_plate_front_bracket());
+    sfile.add_object(ServoMount::new().full());
     /*
     sfile.add_object(
             add_named_color(
