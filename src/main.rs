@@ -1760,7 +1760,8 @@ qstruct!(ServoMount() {
     servo_depth: f32 = 22.,
     servo_height: f32 = 28.,
     servo_tab_height: f32 = 4.6,
-    boom_width: f32 = 11.,
+    boom_height: f32 = 11.,
+    boom_width: f32 = 9.6,
     side_thickness: f32 = 2.,
     prop_clearance: f32 = 10.,
     top_offset: f32 = 7.,
@@ -1781,16 +1782,16 @@ impl ServoMount {
             let outline = {
                 let points = vec![
                     vec2(-10., -10.),
-                    vec2(-10., self.servo_height + self.boom_width),
+                    vec2(-10., self.servo_height + self.boom_height),
                     vec2(
                         self.servo_depth - self.prop_clearance,
-                        self.servo_height + self.boom_width
+                        self.servo_height + self.boom_height
                     ),
                     vec2(
                         self.servo_depth - self.prop_clearance,
                         self.servo_height
                     ),
-                    vec2(self.servo_depth, self.boom_width),
+                    vec2(self.servo_depth, self.boom_height),
                     vec2(self.servo_depth, -10.),
                 ];
 
@@ -1816,19 +1817,20 @@ impl ServoMount {
             to_keep
         })
     }
+
     fn outline(&self) -> ScadObject {
         let half_outer_outline = {
-            let boom_x = self.boom_width / 2. + self.side_thickness;
+            let boom_x = self.boom_height / 2. + self.side_thickness;
             let servo_x = self.servo_width / 2. + self.side_thickness;
-            let servo_y_start = self.boom_width;
-            let top_tab_start = self.servo_height + self.boom_width
+            let servo_y_start = self.boom_height;
+            let top_tab_start = self.servo_height + self.boom_height
                     - self.side_thickness;
             let tab_length = 5.;
 
             vec!(
                 vec2(0., -self.side_thickness),
                 vec2(boom_x, -self.side_thickness),
-                vec2(boom_x, self.boom_width / 2.),
+                vec2(boom_x, self.boom_height / 2.),
                 vec2(servo_x, servo_y_start),
                 vec2(
                     servo_x + 1.,
@@ -1838,9 +1840,9 @@ impl ServoMount {
                 vec2(servo_x + tab_length, top_tab_start - self.top_offset),
                 vec2(
                     servo_x + tab_length,
-                    self.servo_height + self.boom_width - self.top_offset
+                    self.servo_height + self.boom_height - self.top_offset
                 ),
-                vec2(0., self.servo_height + self.boom_width - self.top_offset),
+                vec2(0., self.servo_height + self.boom_height - self.top_offset),
             )
         };
 
@@ -1856,20 +1858,20 @@ impl ServoMount {
                     vec2(top_width/2., height-bottom_offset),
                     vec2(-top_width/2., height-bottom_offset)
                 );
-            scad!(Translate2d(vec2(0., self.boom_width)); {
+            scad!(Translate2d(vec2(0., self.boom_height)); {
                 scad!(Polygon(PolygonParameters::new(points)))
             })
         };
 
         let boom_outline = centered_square(
-            vec2(self.boom_width, self.boom_width), (true, false)
+            vec2(self.boom_width, self.boom_height), (true, false)
         );
 
         let servo_outline = {
             let shape = centered_square(
                 vec2(self.servo_width, self.servo_height), (true, false)
             );
-            scad!(Translate2d(vec2(0., self.boom_width)); shape)
+            scad!(Translate2d(vec2(0., self.boom_height)); shape)
         };
 
         scad!(Difference; {
