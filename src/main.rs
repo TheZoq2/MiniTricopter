@@ -453,8 +453,6 @@ impl TricopterBody
             {
                 self.get_back_mount_block(),
                 self.get_camera_box_outline(),
-                self.get_front_screw_tab_outline(),
-                self.get_back_screw_tab_outline(),
             }),
         });
 
