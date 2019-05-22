@@ -467,13 +467,6 @@ impl TricopterBody
             scad!(Translate(vec3(0., 0., self.height)); cutter)
         };
 
-        let camera_lens_hole = {
-            let z_offset = self.camera_offset_from_top 
-                           + self.get_bottom_total_height();
-
-            self.get_camera_lens_hole(z_offset)
-        };
-
         //Cutting out things like holes
         let with_holes = scad!(Difference;
         {
@@ -1208,7 +1201,6 @@ impl TricopterBody
 
         let triangle_height = triangle_height_above_canopy
                               + self.canopy_max_height;
-                              - bottom_offset;
 
         let points = vec!(
                 na::Vector2::new(triangle_height, bottom_offset),
