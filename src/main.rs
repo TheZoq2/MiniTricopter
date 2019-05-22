@@ -393,6 +393,7 @@ qstruct!(TricopterBody()
     camera_box_length: f32 = 20.,
     camera_box_edge_width: f32 = 1.,
     camera_box_edge_padding: f32 = 0.5,
+    camera_spot_side_width: f32 = 10.,
 
     motor_wire_hole_radius: f32 = 4.,
 
@@ -455,10 +456,6 @@ impl TricopterBody
                 self.get_front_screw_tab_outline(),
                 self.get_back_screw_tab_outline(),
             }),
-            scad!(LinearExtrude(edge_extrude_params.clone());
-            {
-                self.get_camera_box_bottom_edge_outline()
-            })
         });
 
 
@@ -486,7 +483,6 @@ impl TricopterBody
             , self.get_front_arm_screw_holes()
             , self.get_back_screwholes()
             , camera_box_cutout
-            , camera_lens_hole
             , self.get_battery_strap_holes()
             , self.place_object_at_motor_wire_holes(
                         self.get_back_block_cable_hole())
@@ -881,25 +877,30 @@ impl TricopterBody
     }
 
     /**
-      Returns an outline of the edge that fits inside the camera_box_top_cutout
-    */
-    fn get_camera_box_bottom_edge_outline(&self) -> ScadObject
-    {
-        let offset = -(self.canopy_thickness + self.camera_box_edge_padding);
-        scad!(Offset(OffsetType::Delta(offset), false);{
-            self.get_camera_box_outline()
-        })
-    }
-    /**
       Returns a 2d outline of the hole part of the camera box
      */
     fn get_camera_box_bottom_cutout_outline(&self) -> ScadObject
     {
-        let offset = -self.camera_box_edge_width;
+        let corner_radius = self.front_section_corner_radius;
+        let x_start = -(
+                self.front_section_length 
+                - self.camera_box_length
+                - self.canopy_thickness * 2.
+                + corner_radius
+            );
 
-        scad!(Offset(OffsetType::Delta(offset), false);{
-            self.get_camera_box_bottom_edge_outline()
-        })
+        let x_end = -(self.front_section_length);
+        let y_start = (self.front_section_width / 2.) - self.camera_spot_side_width;
+        let y_end = -y_start;
+
+        let points = vec!(
+                na::Vector2::new(x_start, y_start),
+                na::Vector2::new(x_end, y_start),
+                na::Vector2::new(x_end, y_end),
+                na::Vector2::new(x_start, y_end),
+            );
+
+        scad!(Polygon(PolygonParameters::new(points)))
     }
 
     /**
