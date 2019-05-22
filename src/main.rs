@@ -490,7 +490,6 @@ impl TricopterBody
             , self.get_battery_strap_holes()
             , self.place_object_at_motor_wire_holes(
                         self.get_back_block_cable_hole())
-            , self.get_cable_tie_holes()
         });
 
         scad!(Intersection;
