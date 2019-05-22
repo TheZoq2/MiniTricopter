@@ -1123,12 +1123,22 @@ impl TricopterBody
             scad!(Rotate(-90., vec3(0., 1., 0.)); cylinder)
         };
 
+        let cutout_cube = {
+            let shape = centered_cube(
+                vec3(bottom_length, self.motor_wire_hole_radius*2., 100.),
+                (false, true, false)
+            );
+
+            scad!(Mirror(vec3(1., 0., 0.)); shape)
+        };
+
         let z_position = self.get_bottom_total_height() - height;
         scad!(Translate(vec3(0., 0., z_position));
         {
             top_cylinder,
             middle_sphere,
-            horizontal_cylinder
+            horizontal_cylinder,
+            cutout_cube,
         })
     }
 
