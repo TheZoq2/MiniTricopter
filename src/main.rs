@@ -1728,7 +1728,7 @@ impl TricopterBody
         let hole_diameter = 3.7;
 
         let width = 9.;
-        let z_size = self.side_plate_arc_width + thickness * 2.;
+        let z_size = self.side_plate_arc_width + self.side_plate_thickness * 2. + thickness * 2.;
 
         let shape = scad!(Union; {
             nut(width, z_size),
@@ -1741,7 +1741,8 @@ impl TricopterBody
         let hole = scad!(Cylinder(z_size, Diameter(hole_diameter)));
         let cutout = scad!(Translate(vec3(0., 0., thickness)); {
             centered_cube(
-                vec3(100., hole_top_offset*2., self.side_plate_arc_width),
+                vec3(100., hole_top_offset*2., self.side_plate_arc_width + self.side_plate_thickness * 2.),
+                // vec3(100., hole_top_offset*2., self.side_plate_arc_width),
                 (true, true, false)
             )
         });
@@ -1883,7 +1884,54 @@ impl ServoMount {
     }
 
     fn flex_holder(&self) -> ScadObject {
-        unimplemented!();
+        let hole_offset = 0.5;
+        let triangle_size = 1.;
+        let hole_height = self.side_thickness;
+        let vertical_length = hole_height + self.side_thickness
+                + self.servo_width / 2. + self.top_offset - hole_offset;
+        let shape = {
+            vec!(
+                vec2(0., 0.),
+                vec2(self.servo_width/2., 0.),
+                vec2(vertical_length, 0.),
+                vec2(vertical_length, self.side_thickness),
+                vec2(self.servo_width/2.+triangle_size, self.side_thickness),
+                vec2(self.servo_width/2., self.side_thickness - triangle_size),
+                vec2(self.servo_width/2.-triangle_size, self.side_thickness),
+                vec2(0., self.side_thickness),
+            )
+        };
+        let polygon = scad!(Polygon(PolygonParameters::new(shape)));
+
+        let hole_width = self.servo_depth - self.prop_clearance;
+        let extrusion_height = hole_width + self.side_thickness * 2.;
+
+        let extrude_params = LinExtrudeParams {
+            height: extrusion_height,
+            .. Default::default()
+        };
+        let outer = scad!(LinearExtrude(extrude_params); polygon);
+
+        let hole_cutout = {
+            let shape = scad!(Cube(vec3(hole_height, 100., hole_width)));
+            scad!(Translate(vec3(
+                self.servo_width / 2. + self.top_offset - hole_offset,
+                0.,
+                self.side_thickness
+            )); {
+                shape
+            })
+        };
+
+        let full_shape = scad!(Difference; {
+            outer,
+            hole_cutout
+        });
+
+        scad!(Union; {
+            full_shape.clone(),
+            scad!(Mirror(x_axis()); full_shape)
+        })
     }
 }
 
@@ -1984,11 +2032,11 @@ fn main()
     //sfile.add_object(scad!(Translate(vec3(0., 0., 27.));
     //                       add_named_color("brown", DysEsc::new().get_board())));
     //sfile.add_object(get_camera_water_seal(&BoardCamera::new(), &TricopterBody::new()));
-    // sfile.add_object(TricopterBody::new().get_body_bottom());
+    sfile.add_object(TricopterBody::new().get_body_bottom());
     // sfile.add_object(TricopterBody::new().get_side_plate_mount());
     // sfile.add_object(TricopterBody::new().side_plate_shape());
     // sfile.add_object(TricopterBody::new().side_plate_front_bracket());
-    sfile.add_object(ServoMount::new().full());
+    // sfile.add_object(ServoMount::new().flex_holder());
     /*
     sfile.add_object(
             add_named_color(
