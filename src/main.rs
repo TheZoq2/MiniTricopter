@@ -375,7 +375,7 @@ qstruct!(TricopterBody()
     inner_width: f32 = 50.,
     center_width: f32 = 56.,
 
-    back_block_length_factor: f32 = 0.5,
+    back_block_length_factor: f32 = 0.6,
 
     arm_width: f32 = 10.,
 
@@ -626,10 +626,10 @@ impl TricopterBody
 
         let start_width = self.back_outer_width 
             + (self.inner_width - self.back_outer_width) 
-            * length_factor;
+            * (1. - length_factor);
 
         //Adding some padding to the arm width
-        let arm_padding = 0.25;
+        let arm_padding = 0.2;
         let total_arm_width = self.arm_width + arm_padding;
 
         let shape = {
